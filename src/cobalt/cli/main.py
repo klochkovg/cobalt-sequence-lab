@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Sequence
 
-from cobalt.cli import inspect, normalize, stats, validate
+from cobalt.cli import inspect, normalize, stats, validate, help
 
 
 COMMAND_HANDLERS: dict[str, callable] = {
@@ -13,6 +13,7 @@ COMMAND_HANDLERS: dict[str, callable] = {
     "stats": stats.main,
     "normalize": normalize.main,
     "validate": validate.main,
+    "help": help.main
 }
 
 
