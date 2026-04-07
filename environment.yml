@@ -1,0 +1,19 @@
+name: biolab-dev
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - biopython
+  - pandas
+  - pyarrow
+  - numpy
+  - typer
+  - rich
+  - pydantic
+  - pytest
+  - pytest-cov
+  - ruff
+  - mypy
+  - jupyterlab
+  - ipykernel
+  - pip
