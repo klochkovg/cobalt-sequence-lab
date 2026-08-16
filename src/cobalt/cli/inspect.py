@@ -35,7 +35,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: unsupported extension {path.suffix!r}, expected FASTA ({', '.join(sorted(FASTA_SUFFIXES))})")
         return 1
 
-    record_count = sum(1 for _ in SeqIO.parse(path, "fasta"))
+    lengths = [len(record.seq) for record in SeqIO.parse(path, "fasta")]
+
+    if not lengths:
+        print(f"{path}: 0 records")
+        return 0
+
+    print(f"{path}: {len(lengths)} record(s)")
+    print(f" length: min={min(lengths)}  max={max(lengths)}  mean={sum(lengths) / len(lengths):.1f}")
+    print("-----------------------------------------------------------------------------------------")
 
     for seq_record in SeqIO.parse(path, "fasta"):
         print(f"Sequence name   : {seq_record.id}")
