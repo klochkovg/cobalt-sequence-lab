@@ -3,7 +3,12 @@
 The main goal of this project, is experimenting with biopython and some
 tooling necessary for bioinformatics tasks.
 
-# Definition of DONE (according to chatbot)
+# Plans for future
+
+Cover most of biopython functionality as part of the task. Tests and adequate build infrastructure.
+Provide easy integration with one of common bioinformatics pipelines. Easy integration into cloud platforms.
+
+# Definition of DONE (preliminary stage)
 
 - Installable Python package
 - CLI with inpsect, stats, validate, normalize
@@ -19,7 +24,7 @@ tooling necessary for bioinformatics tasks.
 
 # Some preliminaries
 
-I used conda environment created with the following command:
+Conda environment was used. It can be created with the following command:
 
 ```bash
 conda create -n biolab-dev -c conda-forge \
@@ -39,7 +44,7 @@ conda create -n biolab-dev -c conda-forge \
   ipykernel
 ```
 
-# Supposed capabilities
+# Supposed capabilities (stage 1)
 
 1. Inspect command
    - number of records
@@ -47,7 +52,7 @@ conda create -n biolab-dev -c conda-forge \
    - min/max/mean length
    - formats detected
    - warning couts
-2. State command, emit a table with one row per crecord
+2. State command, emit a table with one row per record
    - ID
    - description
    - length
