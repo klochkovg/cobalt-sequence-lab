@@ -15,6 +15,11 @@ def build_parser() -> argparse.ArgumentParser:
     """Build parser for inspect command."""
     parser = argparse.ArgumentParser(prog="cobalt inspect")
     parser.add_argument("input", help="Input FASTA/GenBank file")
+    parser.add_argument(
+        "--overview-only",
+        action="store_true",
+        help="Print only the record count, skip length/GC stats"
+    )
     return parser
 
 
@@ -44,6 +49,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"{path}: {len(lengths)} record(s)")
     print(f" length: min={min(lengths)}  max={max(lengths)}  mean={sum(lengths) / len(lengths):.1f}")
     print("-----------------------------------------------------------------------------------------")
+    if args.overview_only:
+        return 0
 
     for seq_record in SeqIO.parse(path, "fasta"):
         print(f"Sequence name   : {seq_record.id}")
