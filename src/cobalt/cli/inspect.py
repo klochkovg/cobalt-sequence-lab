@@ -8,6 +8,7 @@ from pathlib import Path
 from Bio import SeqUtils
 
 from Bio import SeqIO
+from Bio.Data import IUPACData
 
 DNA_LETTERS = set("ACGTN")
 RNA_LETTERS = set("ACGUN")
@@ -15,7 +16,21 @@ RNA_LETTERS = set("ACGUN")
 FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
 GENBANK_SUFFIXES = {".gbk", ".gk", ".gp", "gpt"}
 
+def find_warnings(records):
+    """Return a list of warning strings: empty seqs, duplicate IDs, invalid chars."""
+    warnings = []
+    seen_ids = set()
+    valid_chars = set(IUPACData.ambiguous_dna_letters + IUPACData.protein_letters)
 
+    for record in records:
+        if len(record.seq) == 0:
+            warning.append(f"{record.id}: empty sequence")
+    seen_ids.add(record.id)
+
+    bad_chars = set(str(record.seq).upper()) - valid_chars
+    if bad_chars:
+        warning.append(f"{record.id}: invalid characters {sorted(bad_chars)}")
+    return warnings
 
 
 def guess_molecule_type(seq):
@@ -75,14 +90,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not lengths:
         print(f"{path}: 0 records")
         return 0
+    records = list(SeqIO.parse(path, "fasta"))
+    warnings = find_warnings(records)
 
     print(f"{path}: {len(lengths)} record(s)")
     print(f" length: min={min(lengths)}  max={max(lengths)}  mean={sum(lengths) / len(lengths):.1f}")
+    print(f"Number of warnings {len(warnings)}")
+    if len(warnings) > 0:
+        for warning in warnings:
+            print(f"     {warning}")
     print("-----------------------------------------------------------------------------------------")
     if args.overview_only:
         return 0
 
-    for seq_record in SeqIO.parse(path, "fasta"):
+    for seq_record in records:
         print(f"Sequence name   : {seq_record.id}")
         print(f"Sequence length : {len(seq_record)}")
         print(f"Sequence        : {repr(seq_record.seq)}")
