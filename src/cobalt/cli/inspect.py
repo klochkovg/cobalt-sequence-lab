@@ -5,10 +5,31 @@ from __future__ import annotations
 import argparse
 from collections.abc import Sequence
 from pathlib import Path
+from Bio import SeqUtils
 
 from Bio import SeqIO
 
+DNA_LETTERS = set("ACGTN")
+RNA_LETTERS = set("ACGUN")
+
 FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
+GENBANK_SUFFIXES = {".gbk", ".gk", ".gp", "gpt"}
+
+
+
+
+def guess_molecule_type(seq):
+    """ Try to guess type of molecule by estimation presence of corresponding elements in the sequence """
+    letters = set(str(seq).upper())
+    if letters <= DNA_LETTERS:
+        return "DNA"
+    if letters <= RNA_LETTERS:
+        return "RNA"
+    return "protein"
+
+def calculate_gc_fraction(seq):
+    """ Returns estimation of GC fraction"""
+    return SeqUtils.gc_fraction(seq)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,6 +49,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     Checks that the input file exists and is a FASTA file, then
     reports the number of records inside
+
+    Supposed functionality 
+    Printing
+    - number of records  DONE
+    - guessed molecule types  : does it look like DNA or RNA or protein (ACGTN, ACGUN, Aminoacids)
+    - min/max/mean length  DONE
+    - formats detected  DONE
+    - warning couts  : empty/duplicate IDs, 
+    - GC fraction - Bio.SeqUtils.gc_fraction  DONE
     """
     args = build_parser().parse_args(argv)
     path = Path(args.input)
@@ -56,8 +86,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Sequence name   : {seq_record.id}")
         print(f"Sequence length : {len(seq_record)}")
         print(f"Sequence        : {repr(seq_record.seq)}")
+        print(f"GC fraction     : {repr(calculate_gc_fraction(seq_record.seq))}")
+        print(f"Type guess      : {guess_molecule_type(seq_record.seq)}")
         print()
-    #print(f"{path}: {record_count} record(s)")
     return 0
 
 
