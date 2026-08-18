@@ -8,6 +8,10 @@ tooling necessary for bioinformatics tasks.
 Cover most of biopython functionality as part of the task. Tests and adequate build infrastructure.
 Provide easy integration with one of common bioinformatics pipelines. Easy integration into cloud platforms.
 
+# Short term plans
+
+Integration of pytest + ruff + mypy config. Inspect command fully functional. Until 18.08.2026 for FASTA and GenBank.
+
 # Definition of DONE (preliminary stage)
 
 - Installable Python package
