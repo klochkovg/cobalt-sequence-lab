@@ -56,6 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print only the record count, skip length/GC stats"
     )
+    parser.add_argument(
+        "--output-seq-number",
+        type=int,
+        default=-1,
+        help="Number of sequences int output"
+    )
     return parser
 
 
@@ -102,8 +108,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("-----------------------------------------------------------------------------------------")
     if args.overview_only:
         return 0
-
+    number_of_sequences = args.output_seq_number
+    counter = 0
     for seq_record in records:
+        counter = counter + 1
+        if counter > number_of_sequences and number_of_sequences != -1:
+            break
         print(f"Sequence name   : {seq_record.id}")
         print(f"Sequence length : {len(seq_record)}")
         print(f"Sequence        : {repr(seq_record.seq)}")
