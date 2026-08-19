@@ -98,3 +98,11 @@ cobalt validate input.fasta --report qc.json
 conda env create -f environment.yml
 pip install -e .
 ```
+
+# Some known problems
+
+- lack of --version
+- lack of tests
+- lack of linter
+- lack of typing (mypy)
+- lack of precommit hooks for linter and tests

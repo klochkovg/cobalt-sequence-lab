@@ -67,18 +67,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the inspect command.
-
     Checks that the input file exists and is a FASTA file, then
     reports the number of records inside
-
-    Supposed functionality 
-    Printing
-    - number of records  DONE
-    - guessed molecule types  : does it look like DNA or RNA or protein (ACGTN, ACGUN, Aminoacids)
-    - min/max/mean length  DONE
-    - formats detected  DONE
-    - warning couts  : empty/duplicate IDs, 
-    - GC fraction - Bio.SeqUtils.gc_fraction  DONE
     """
     args = build_parser().parse_args(argv)
     path = Path(args.input)
