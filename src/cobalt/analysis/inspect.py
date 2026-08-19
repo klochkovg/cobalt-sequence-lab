@@ -13,7 +13,7 @@ def inspect_records() -> dict[str, Any]:
        - min/max/mean length
        - formats detected
        - warning counts
-       
+
     Stub implementation.
     """
 

@@ -16,6 +16,7 @@ RNA_LETTERS = set("ACGUN")
 FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
 GENBANK_SUFFIXES = {".gbk", ".gk", ".gp", "gpt"}
 
+
 def find_warnings(records):
     """Return a list of warning strings: empty seqs, duplicate IDs, invalid chars."""
     warnings = []
@@ -24,17 +25,17 @@ def find_warnings(records):
 
     for record in records:
         if len(record.seq) == 0:
-            warning.append(f"{record.id}: empty sequence")
+            warnings.append(f"{record.id}: empty sequence")
     seen_ids.add(record.id)
 
     bad_chars = set(str(record.seq).upper()) - valid_chars
     if bad_chars:
-        warning.append(f"{record.id}: invalid characters {sorted(bad_chars)}")
+        warnings.append(f"{record.id}: invalid characters {sorted(bad_chars)}")
     return warnings
 
 
 def guess_molecule_type(seq):
-    """ Try to guess type of molecule by estimation presence of corresponding elements in the sequence """
+    """Try to guess type of molecule by estimation presence of corresponding elements in the sequence"""
     letters = set(str(seq).upper())
     if letters <= DNA_LETTERS:
         return "DNA"
@@ -42,8 +43,9 @@ def guess_molecule_type(seq):
         return "RNA"
     return "protein"
 
+
 def calculate_gc_fraction(seq):
-    """ Returns estimation of GC fraction"""
+    """Returns estimation of GC fraction"""
     return SeqUtils.gc_fraction(seq)
 
 
@@ -54,13 +56,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--overview-only",
         action="store_true",
-        help="Print only the record count, skip length/GC stats"
+        help="Print only the record count, skip length/GC stats",
     )
     parser.add_argument(
-        "--output-seq-number",
-        type=int,
-        default=-1,
-        help="Number of sequences int output"
+        "--output-seq-number", type=int, default=-1, help="Number of sequences int output"
     )
     return parser
 
@@ -78,7 +77,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     if path.suffix.lower() not in FASTA_SUFFIXES:
-        print(f"error: unsupported extension {path.suffix!r}, expected FASTA ({', '.join(sorted(FASTA_SUFFIXES))})")
+        print(
+            f"error: unsupported extension {path.suffix!r}, expected FASTA ({', '.join(sorted(FASTA_SUFFIXES))})"
+        )
         return 1
 
     lengths = [len(record.seq) for record in SeqIO.parse(path, "fasta")]
@@ -90,12 +91,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     warnings = find_warnings(records)
 
     print(f"{path}: {len(lengths)} record(s)")
-    print(f" length: min={min(lengths)}  max={max(lengths)}  mean={sum(lengths) / len(lengths):.1f}")
+    print(
+        f" length: min={min(lengths)}  max={max(lengths)}  mean={sum(lengths) / len(lengths):.1f}"
+    )
     print(f"Number of warnings {len(warnings)}")
     if len(warnings) > 0:
         for warning in warnings:
             print(f"     {warning}")
-    print("-----------------------------------------------------------------------------------------")
+    print(
+        "-----------------------------------------------------------------------------------------"
+    )
     if args.overview_only:
         return 0
     number_of_sequences = args.output_seq_number

@@ -2,24 +2,26 @@
 
 from __future__ import annotations
 
+from cobalt import __version__
 import argparse
-from collections.abc import Sequence
+from collections.abc import Sequence, Callable
 
 from cobalt.cli import inspect, normalize, stats, validate, help
 
 
-COMMAND_HANDLERS: dict[str, callable] = {
+COMMAND_HANDLERS: dict[str, Callable[[Sequence[str] | None], int]] = {
     "inspect": inspect.main,
     "stats": stats.main,
     "normalize": normalize.main,
     "validate": validate.main,
-    "help": help.main
+    "help": help.main,
 }
 
 
 def build_parser() -> argparse.ArgumentParser:
     """Build top-level parser for `cobalt` command."""
     parser = argparse.ArgumentParser(prog="cobalt")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(
         "command",
         choices=sorted(COMMAND_HANDLERS),
