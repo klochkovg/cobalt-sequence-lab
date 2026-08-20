@@ -64,13 +64,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def general_info(path) -> dict:
-    lengths = [len(record.seq) for record in SeqIO.parse(path, "fasta")]
+def read_file(path, type) -> dict:
+    records = list(SeqIO.parse(path, type))
+
+    lengths = [len(record.seq) for record in records]
     if not lengths:
         print(f"{path}: 0 records")
         return {}
 
-    records = list(SeqIO.parse(path, "fasta"))
     result = {
         "warnings": find_warnings(records),
         "records": records,
@@ -94,14 +95,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: file not found: {path}")
         return 1
 
-    if path.suffix.lower() not in FASTA_SUFFIXES:
+    if path.suffix.lower() not in (FASTA_SUFFIXES | GENBANK_SUFFIXES):
         print(
-            f"error: unsupported extension {path.suffix!r}, expected FASTA ({', '.join(sorted(FASTA_SUFFIXES))})"
+            f"error: unsupported extension {path.suffix!r}, expected ({', '.join(sorted(FASTA_SUFFIXES | GENBANK_SUFFIXES))})"
         )
         return 1
-
-    primary_result = general_info(path)
-
+    primary_result = []
+    if path.suffix.lower() in FASTA_SUFFIXES:
+        primary_result = read_file(path, "fasta")
+    if path.suffix.lower() in GENBANK_SUFFIXES:
+        primary_result = read_file(path, "genbank")
     if not primary_result:
         print(f"{path}: 0 records")
         return 0
@@ -111,7 +114,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     print(f"Number of warnings {len(primary_result['warnings'])}")
     if len(primary_result["warnings"]) > 0:
-        for warning in warnings:
+        for warning in primary_result["warnings"]:
             print(f"     {warning}")
     print("--------------------------------------------------------------------------------------")
     if args.overview_only:
