@@ -64,6 +64,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def general_info(path) -> dict:
+    lengths = [len(record.seq) for record in SeqIO.parse(path, "fasta")]
+    if not lengths:
+        print(f"{path}: 0 records")
+        return {}
+
+    records = list(SeqIO.parse(path, "fasta"))
+    result = {
+        "warnings": find_warnings(records),
+        "records": records,
+        "records_num": len(lengths),
+        "min": min(lengths),
+        "max": max(lengths),
+        "mean": sum(lengths) / len(lengths),
+    }
+    return result
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the inspect command.
     Checks that the input file exists and is a FASTA file, then
@@ -82,38 +100,42 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 1
 
-    lengths = [len(record.seq) for record in SeqIO.parse(path, "fasta")]
+    primary_result = general_info(path)
 
-    if not lengths:
+    if not primary_result:
         print(f"{path}: 0 records")
         return 0
-    records = list(SeqIO.parse(path, "fasta"))
-    warnings = find_warnings(records)
-
-    print(f"{path}: {len(lengths)} record(s)")
+    print(f"{path}: {primary_result['records_num']} record(s)")
     print(
-        f" length: min={min(lengths)}  max={max(lengths)}  mean={sum(lengths) / len(lengths):.1f}"
+        f" length: min={primary_result['min']}  max={primary_result['max']}  mean={primary_result['mean']:.1f}"
     )
-    print(f"Number of warnings {len(warnings)}")
-    if len(warnings) > 0:
+    print(f"Number of warnings {len(primary_result['warnings'])}")
+    if len(primary_result["warnings"]) > 0:
         for warning in warnings:
             print(f"     {warning}")
-    print(
-        "-----------------------------------------------------------------------------------------"
-    )
+    print("--------------------------------------------------------------------------------------")
     if args.overview_only:
         return 0
     number_of_sequences = args.output_seq_number
     counter = 0
-    for seq_record in records:
+    result_array = []
+    for seq_record in primary_result["records"]:
         counter = counter + 1
         if counter > number_of_sequences and number_of_sequences != -1:
             break
-        print(f"Sequence name   : {seq_record.id}")
-        print(f"Sequence length : {len(seq_record)}")
-        print(f"Sequence        : {repr(seq_record.seq)}")
-        print(f"GC fraction     : {repr(calculate_gc_fraction(seq_record.seq))}")
-        print(f"Type guess      : {guess_molecule_type(seq_record.seq)}")
+        result = {
+            "id": seq_record.id,
+            "length": len(seq_record),
+            "sequence": seq_record.seq,
+            "gc_fraction": calculate_gc_fraction(seq_record.seq),
+            "type": guess_molecule_type(seq_record.seq),
+        }
+        result_array.append(result)
+        print(f"Sequence name   : {result['id']}")
+        print(f"Sequence length : {result['length']}")
+        print(f"Sequence        : {repr(result['sequence'])}")
+        print(f"GC fraction     : {repr(result['gc_fraction'])}")
+        print(f"Type guess      : {result['type']}")
         print()
     return 0
 
