@@ -14,6 +14,37 @@ from Bio.Data import IUPACData
 from cobalt.analysis.inspect import read_file, FASTA_SUFFIXES, GENBANK_SUFFIXES
 
 
+def check_file(path: str) -> bool:
+    """ "Checking the file is correct and exists"""
+    if not path.is_file():
+        print(f"error: file not found: {path}")
+        return False
+    if path.suffix.lower() not in (FASTA_SUFFIXES | GENBANK_SUFFIXES):
+        print(
+            f"error: unsupported extension {path.suffix!r}, expected ({', '.join(sorted(FASTA_SUFFIXES | GENBANK_SUFFIXES))})"
+        )
+        return False
+    return True
+
+
+def print_file_results(path: str, result: dict) -> None:
+    print(f"{path}: {result['records_num']} record(s)")
+    print(f" length: min={result['min']}  max={result['max']}  mean={result['mean']:.1f}")
+    print(f"Number of warnings {len(result['warnings'])}")
+    if len(result["warnings"]) > 0:
+        for warning in result["warnings"]:
+            print(f"     {warning}")
+
+
+def print_record(record: dict) -> None:
+    print(f"Sequence name   : {record['id']}")
+    print(f"Sequence length : {record['length']}")
+    print(f"Sequence        : {repr(record['sequence'])}")
+    print(f"GC fraction     : {repr(record['gc_fraction'])}")
+    print(f"Type guess      : {record['type']}")
+    print()
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for inspect command."""
     parser = argparse.ArgumentParser(prog="cobalt inspect")
@@ -37,15 +68,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     path = Path(args.input)
 
-    if not path.is_file():
-        print(f"error: file not found: {path}")
+    if not check_file(path):
         return 1
 
-    if path.suffix.lower() not in (FASTA_SUFFIXES | GENBANK_SUFFIXES):
-        print(
-            f"error: unsupported extension {path.suffix!r}, expected ({', '.join(sorted(FASTA_SUFFIXES | GENBANK_SUFFIXES))})"
-        )
-        return 1
     primary_result = []
     if path.suffix.lower() in FASTA_SUFFIXES:
         primary_result = read_file(path, "fasta")
@@ -54,17 +79,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not primary_result:
         print(f"{path}: 0 records")
         return 0
-    print(f"{path}: {primary_result['records_num']} record(s)")
-    print(
-        f" length: min={primary_result['min']}  max={primary_result['max']}  mean={primary_result['mean']:.1f}"
-    )
-    print(f"Number of warnings {len(primary_result['warnings'])}")
-    if len(primary_result["warnings"]) > 0:
-        for warning in primary_result["warnings"]:
-            print(f"     {warning}")
-    print("--------------------------------------------------------------------------------------")
+    print_file_results(path, primary_result)
     if args.overview_only:
         return 0
+    print("--------------------------------------------------------------------------------------")
     number_of_sequences = args.output_seq_number
     counter = 0
     result_array = []
@@ -72,12 +90,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         counter = counter + 1
         if counter > number_of_sequences and number_of_sequences != -1:
             break
-        print(f"Sequence name   : {record['id']}")
-        print(f"Sequence length : {record['length']}")
-        print(f"Sequence        : {repr(record['sequence'])}")
-        print(f"GC fraction     : {repr(record['gc_fraction'])}")
-        print(f"Type guess      : {record['type']}")
-        print()
+        print_record(record)
     return 0
 
 

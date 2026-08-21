@@ -77,7 +77,7 @@ def read_file(path, type) -> dict:
             "type": guess_molecule_type(seq_record.seq),
         }
         result_array.append(result)
-    primary_result['records'] = result_array
+    primary_result["records"] = result_array
     return primary_result
 
 
