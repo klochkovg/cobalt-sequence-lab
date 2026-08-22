@@ -8,3 +8,6 @@ lint_fix:
 
 mypy:
 	mypy src
+
+test:
+	pytest
