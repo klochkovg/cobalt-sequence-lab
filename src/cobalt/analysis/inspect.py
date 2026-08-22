@@ -58,12 +58,12 @@ def calculate_gc_fraction(seq):
 
 def read_file(path, type) -> dict[str, Any]:
     """Provide some general information about records.
-       What should be implemented:
-       - number of records
-       - guessed molecule types
-       - min/max/mean length
-       - formats detected
-       - warning counts
+    What should be implemented:
+    - number of records
+    - guessed molecule types
+    - min/max/mean length
+    - formats detected
+    - warning counts
     """
 
     records = list(SeqIO.parse(path, type))
