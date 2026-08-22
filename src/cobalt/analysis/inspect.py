@@ -26,13 +26,15 @@ def find_warnings(records):
     valid_chars = set(IUPACData.ambiguous_dna_letters + IUPACData.protein_letters)
 
     for record in records:
+        if record.id in seen_ids:
+            warnings.append(f"{record.id}: duplicate ID")
         if len(record.seq) == 0:
             warnings.append(f"{record.id}: empty sequence")
-    seen_ids.add(record.id)
+        seen_ids.add(record.id)
 
-    bad_chars = set(str(record.seq).upper()) - valid_chars
-    if bad_chars:
-        warnings.append(f"{record.id}: invalid characters {sorted(bad_chars)}")
+        bad_chars = set(str(record.seq).upper()) - valid_chars
+        if bad_chars:
+            warnings.append(f"{record.id}: invalid characters {sorted(bad_chars)}")
     return warnings
 
 
@@ -51,7 +53,16 @@ def calculate_gc_fraction(seq):
     return SeqUtils.gc_fraction(seq)
 
 
-def read_file(path, type) -> dict:
+def read_file(path, type) -> dict[str, Any]:
+    """Provide some general information about records.
+       What should be implemented:
+       - number of records
+       - guessed molecule types
+       - min/max/mean length
+       - formats detected
+       - warning counts
+    """
+
     records = list(SeqIO.parse(path, type))
 
     lengths = [len(record.seq) for record in records]
@@ -79,18 +90,3 @@ def read_file(path, type) -> dict:
         result_array.append(result)
     primary_result["records"] = result_array
     return primary_result
-
-
-def inspect_records() -> dict[str, Any]:
-    """Provide some general information about records.
-       What should be implemented:
-       - number of records
-       - guessed molecule types
-       - min/max/mean length
-       - formats detected
-       - warning counts
-
-    Stub implementation.
-    """
-
-    raise NotImplementedError("summarize_records is not implemented yet")
