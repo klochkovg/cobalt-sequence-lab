@@ -14,6 +14,7 @@ from Bio.Data import IUPACData
 
 DNA_LETTERS = set("ACGTN")
 RNA_LETTERS = set("ACGUN")
+PROTEIN_LETTERS = set(IUPACData.extended_protein_letters)
 
 FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
 GENBANK_SUFFIXES = {".gbk", ".gk", ".gp", "gpt"}
@@ -45,7 +46,9 @@ def guess_molecule_type(seq):
         return "DNA"
     if letters <= RNA_LETTERS:
         return "RNA"
-    return "protein"
+    if letters <= PROTEIN_LETTERS:
+        return "protein"
+    return "unknown"
 
 
 def calculate_gc_fraction(seq):

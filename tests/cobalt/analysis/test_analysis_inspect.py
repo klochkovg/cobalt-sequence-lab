@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from cobalt.analysis.inspect import read_file, find_warnings
+from cobalt.analysis.inspect import read_file, find_warnings, guess_molecule_type
 
 from Bio.SeqRecord import SeqRecord;
 from Bio.Seq import Seq
@@ -48,3 +48,13 @@ def test_find_warnings_duplicate_ids():
     warnings = find_warnings(input_data)
     assert len(warnings) == 1
     assert warnings[0] == "seq2: duplicate ID"
+
+
+def test_guess_molecule_type_dna():
+    test_result = guess_molecule_type(Seq('AGCTAGT'))
+    assert test_result == "DNA"
+    test_result = guess_molecule_type(Seq('AGCAU'))
+    assert test_result == "RNA"
+    test_result = guess_molecule_type(Seq('AGCAUGW'))
+    assert test_result == "protein"
+
