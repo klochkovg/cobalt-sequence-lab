@@ -40,15 +40,19 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if not check_file(data_file_path):
         return 1
-    primary_result = []
+    primary_result = {}
     if data_file_path.suffix.lower() in FASTA_SUFFIXES:
         primary_result = read_file(data_file_path, "fasta")
     if data_file_path.suffix.lower() in GENBANK_SUFFIXES:
         primary_result = read_file(data_file_path, "genbank")
     if not primary_result:
         print(f"{data_file_path}: 0 records")
-        return 0  
-    write_stats_csv(output, primary_result["records"])  
+        return 0
+    if args.out:
+        with open(args.out, "w", newline="") as f:
+            write_stats_csv(f, primary_result["records"])
+    else:
+        write_stats_csv(sys.stdout, primary_result["records"])
     return 0
 
 
