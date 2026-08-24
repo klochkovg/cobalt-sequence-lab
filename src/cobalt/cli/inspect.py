@@ -11,20 +11,7 @@ from Bio import SeqIO
 from Bio.Data import IUPACData
 
 
-from cobalt.analysis.inspect import read_file, FASTA_SUFFIXES, GENBANK_SUFFIXES
-
-
-def check_file(path: str) -> bool:
-    """ "Checking the file is correct and exists"""
-    if not path.is_file():
-        print(f"error: file not found: {path}")
-        return False
-    if path.suffix.lower() not in (FASTA_SUFFIXES | GENBANK_SUFFIXES):
-        print(
-            f"error: unsupported extension {path.suffix!r}, expected ({', '.join(sorted(FASTA_SUFFIXES | GENBANK_SUFFIXES))})"
-        )
-        return False
-    return True
+from cobalt.analysis.inspect import read_file, FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
 
 
 def print_file_results(path: str, result: dict) -> None:

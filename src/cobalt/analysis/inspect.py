@@ -50,6 +50,19 @@ def guess_molecule_type(seq):
         return "protein"
     return "unknown"
 
+def check_file(path: str) -> bool:
+    """ "Checking the file is correct and exists"""
+    if not path.is_file():
+        print(f"error: file not found: {path}")
+        return False
+    if path.suffix.lower() not in (FASTA_SUFFIXES | GENBANK_SUFFIXES):
+        print(
+            f"error: unsupported extension {path.suffix!r}, expected ({', '.join(sorted(FASTA_SUFFIXES | GENBANK_SUFFIXES))})"
+        )
+        return False
+    return True
+
+
 
 def calculate_gc_fraction(seq):
     """Returns estimation of GC fraction"""
