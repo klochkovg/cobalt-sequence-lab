@@ -33,8 +33,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     In case of empty --out, input to stdout
     """
     args = build_parser().parse_args(argv)
-    output = open(args.out, "w") if args.out else sys.stdout
-    # TODO more checks are required
 
     data_file_path = Path(args.input)
 
@@ -49,8 +47,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"{data_file_path}: 0 records")
         return 0
     if args.out:
-        with open(args.out, "w", newline="") as f:
-            write_stats_csv(f, primary_result["records"])
+        try:
+            with open(args.out, "w", newline="") as f:
+                write_stats_csv(f, primary_result["records"])
+        except IsADirectoryError:
+            print(f"error: --out is a directory: {args.out}")
+            return 1
+        except FileNotFoundError:
+            print(f"error: no such directory for --out: {args.out}")
+            return 1
+        except PermissionError:
+            print(f"error: permission denied writing to: {args.out}")
+            return 1
+        except OSError as exc:
+            print(f"error: could not write to {args.out}: {exc}")
+            return 1
     else:
         write_stats_csv(sys.stdout, primary_result["records"])
     return 0
