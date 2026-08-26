@@ -6,9 +6,9 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 import sys
-from collections.abc import Sequence
 from cobalt.analysis.inspect import read_file, FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
 from cobalt.cli.stats import write_stats_csv
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for validate command."""
@@ -19,8 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Entry point for the validate command.
-    """
+    """Entry point for the validate command."""
     args = build_parser().parse_args(argv)
     data_file_path = Path(args.input)
 

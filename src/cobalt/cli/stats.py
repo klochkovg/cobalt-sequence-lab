@@ -12,6 +12,7 @@ import csv
 
 from typing import TextIO
 
+
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for stats command."""
     parser = argparse.ArgumentParser(prog="cobalt stats")
@@ -19,13 +20,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out", required=False, help="Output stats file path")
     return parser
 
+
 def write_stats_csv(file: TextIO, records: dict) -> None:
     fieldnames = ["id", "length", "gc_fraction", "type"]
     writer = csv.DictWriter(file, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
     for record in records:
         writer.writerow(record)
-
 
 
 def main(argv: Sequence[str] | None = None) -> int:

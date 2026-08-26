@@ -5,11 +5,6 @@ from __future__ import annotations
 import argparse
 from collections.abc import Sequence
 from pathlib import Path
-from Bio import SeqUtils
-
-from Bio import SeqIO
-from Bio.Data import IUPACData
-
 
 from cobalt.analysis.inspect import read_file, FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
 
@@ -72,7 +67,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("--------------------------------------------------------------------------------------")
     number_of_sequences = args.output_seq_number
     counter = 0
-    result_array = []
     for record in primary_result["records"]:
         counter = counter + 1
         if counter > number_of_sequences and number_of_sequences != -1:

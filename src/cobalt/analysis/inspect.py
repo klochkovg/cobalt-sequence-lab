@@ -5,8 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 
-from collections.abc import Sequence
-from pathlib import Path
 from Bio import SeqUtils
 
 from Bio import SeqIO
@@ -50,6 +48,7 @@ def guess_molecule_type(seq):
         return "protein"
     return "unknown"
 
+
 def check_file(path: str) -> bool:
     """ "Checking the file is correct and exists"""
     if not path.is_file():
@@ -61,7 +60,6 @@ def check_file(path: str) -> bool:
         )
         return False
     return True
-
 
 
 def calculate_gc_fraction(seq):
