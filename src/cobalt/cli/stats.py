@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from cobalt.analysis.inspect import read_file, FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
 
 import csv
+import json
 
 from typing import TextIO
 
@@ -18,6 +19,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cobalt stats")
     parser.add_argument("input", help="Input FASTA/GenBank file")
     parser.add_argument("--out", required=False, help="Output stats file path")
+    parser.add_argument(
+        "--json", action="store_true", required=False, help="Output present as JSON"
+    )
     return parser
 
 
@@ -29,6 +33,19 @@ def write_stats_csv(file: TextIO, records: dict) -> None:
         writer.writerow(record)
 
 
+def write_stats_json(file: TextIO, records: dict) -> None:
+    fieldnames = ["id", "length", "gc_fraction", "type"]
+    filtered_records = [{name: record[name] for name in fieldnames} for record in records]
+    json.dump(filtered_records, file, indent=2)
+
+
+def write_stats(type: str, file: TextIO, records: dict) -> None:
+    if type == "csv":
+        write_stats_csv(file, records)
+    elif type == "json":
+        write_stats_json(file, records)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the stats command.
     In case of empty --out, input to stdout
@@ -36,7 +53,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     data_file_path = Path(args.input)
-
+    output_type = "json" if args.json else "csv"
     if not check_file(data_file_path):
         return 1
     primary_result = {}
@@ -50,7 +67,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.out:
         try:
             with open(args.out, "w", newline="") as f:
-                write_stats_csv(f, primary_result["records"])
+                write_stats(output_type, f, primary_result["records"])
         except IsADirectoryError:
             print(f"error: --out is a directory: {args.out}")
             return 1
@@ -64,7 +81,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: could not write to {args.out}: {exc}")
             return 1
     else:
-        write_stats_csv(sys.stdout, primary_result["records"])
+        write_stats(output_type, sys.stdout, primary_result["records"])
     return 0
 
 
