@@ -21,9 +21,14 @@ def print_file_results(path: str, result: dict) -> None:
 def print_record(record: dict) -> None:
     print(f"Sequence name   : {record['id']}")
     print(f"Sequence length : {record['length']}")
-    print(f"Sequence        : {repr(record['sequence'])}")
+    print(f"Sequence        : {str(record['sequence'])}")
     print(f"GC fraction     : {repr(record['gc_fraction'])}")
     print(f"Type guess      : {record['type']}")
+    if record["type"]:
+        print(f"Type            : {record['molecule_type']}")
+    print(f"Description     : {record['description']}")
+    if record["organism"]:
+        print(f"Organism        : {record['organism']}")
     print()
 
 

@@ -56,7 +56,7 @@ conda create -n biolab-dev -c conda-forge \
    - min/max/mean length
    - formats detected
    - warning couts
-2. State command, emit a table with one row per record
+2. Stats command, emit a table with one row per record
    - ID
    - description
    - length
@@ -96,6 +96,12 @@ cobalt validate input.fasta --report qc.json
 
 ```bash
 conda env create -f environment.yml
+pip install -e .
+```
+
+Local installation
+
+```bash
 pip install -e .
 ```
 

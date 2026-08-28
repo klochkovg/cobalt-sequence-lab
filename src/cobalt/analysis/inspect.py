@@ -96,10 +96,15 @@ def read_file(path, type) -> dict[str, Any]:
     for seq_record in records:
         result = {
             "id": seq_record.id,
+            "description": seq_record.description,
             "length": len(seq_record),
             "sequence": seq_record.seq,
             "gc_fraction": calculate_gc_fraction(seq_record.seq),
             "type": guess_molecule_type(seq_record.seq),
+            "organism": seq_record.annotations.get("organism"),
+            "molecule_type": seq_record.annotations.get("molecule_type"),
+            "topology": seq_record.annotations.get("topology"),
+            "feature_count": len(seq_record.features),
         }
         result_array.append(result)
     primary_result["records"] = result_array
