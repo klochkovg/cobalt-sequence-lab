@@ -67,6 +67,24 @@ def calculate_gc_fraction(seq):
     return SeqUtils.gc_fraction(seq)
 
 
+AMBIGUOUS_DNA = set(IUPACData.ambiguous_dna_letters) - set(IUPACData.unambiguous_dna_letters)
+AMBIGUOUS_RNA = set(IUPACData.ambiguous_rna_letters) - set(IUPACData.unambiguous_rna_letters)
+AMBIGUOUS_PROTEIN = set(IUPACData.extended_protein_letters) - set(IUPACData.protein_letters)
+
+
+def calculate_ambiguity_fraction(seq, molecule_type):
+    seq_str = str(seq).upper()
+    if not seq_str:
+        return 0.0
+    ambiguity_letters = {
+        "DNA": AMBIGUOUS_DNA,
+        "RNA": AMBIGUOUS_RNA,
+        "protein": AMBIGUOUS_PROTEIN,
+    }.get(molecule_type, set())
+    ambiguous_count = sum(1 for c in seq_str if c in ambiguity_letters)
+    return ambiguous_count / len(seq_str)
+
+
 def read_file(path, type) -> dict[str, Any]:
     """Provide some general information about records.
     What should be implemented:
@@ -94,12 +112,18 @@ def read_file(path, type) -> dict[str, Any]:
 
     result_array = []
     for seq_record in records:
+        seq_type = (
+            seq_record.annotations.get("molecule_type")
+            if seq_record.annotations.get("molecule_type")
+            else guess_molecule_type(seq_record.seq)
+        )
         result = {
             "id": seq_record.id,
             "description": seq_record.description,
             "length": len(seq_record),
             "sequence": seq_record.seq,
             "gc_fraction": calculate_gc_fraction(seq_record.seq),
+            "ambiguity_fraction": calculate_ambiguity_fraction(seq_record, seq_type),
             "type": guess_molecule_type(seq_record.seq),
             "organism": seq_record.annotations.get("organism"),
             "molecule_type": seq_record.annotations.get("molecule_type"),

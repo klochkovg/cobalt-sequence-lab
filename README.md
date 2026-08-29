@@ -73,7 +73,7 @@ conda create -n biolab-dev -c conda-forge \
 4. Normalize command, produce
    - cleaned IDs
    - uppercase standardized sequences
-   - consistent desciption handling
+   - consistent description handling
    - filtered output formats
 5. Record report
    - sequene preview
