@@ -28,7 +28,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     primary_result = {}
     if data_file_path.suffix.lower() in FASTA_SUFFIXES:
         primary_result = read_file(data_file_path, "fasta")
-    if data_file_path.suffix.lower() in GENB >> ANK_SUFFIXES:
+    if data_file_path.suffix.lower() in GENBANK_SUFFIXES:
         primary_result = read_file(data_file_path, "genbank")
     if not primary_result:
         print(f"{data_file_path}: 0 records")

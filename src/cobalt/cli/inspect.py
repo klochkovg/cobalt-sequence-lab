@@ -9,7 +9,7 @@ from pathlib import Path
 from cobalt.analysis.inspect import read_file, FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
 
 
-def print_file_results(path: str, result: dict) -> None:
+def print_file_results(path: Path, result: dict) -> None:
     print(f"{path}: {result['records_num']} record(s)")
     print(f" length: min={result['min']}  max={result['max']}  mean={result['mean']:.1f}")
     print(f"Number of warnings {len(result['warnings'])}")
@@ -58,7 +58,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not check_file(path):
         return 1
 
-    primary_result = []
+    primary_result = {}
     if path.suffix.lower() in FASTA_SUFFIXES:
         primary_result = read_file(path, "fasta")
     if path.suffix.lower() in GENBANK_SUFFIXES:

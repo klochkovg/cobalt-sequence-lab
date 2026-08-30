@@ -9,6 +9,8 @@ from Bio import SeqUtils
 
 from Bio import SeqIO
 from Bio.Data import IUPACData
+from Bio.SeqRecord import SeqRecord
+from pathlib import Path
 
 DNA_LETTERS = set("ACGTN")
 RNA_LETTERS = set("ACGUN")
@@ -18,7 +20,7 @@ FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
 GENBANK_SUFFIXES = {".gbk", ".gk", ".gp", "gpt"}
 
 
-def find_warnings(records):
+def find_warnings(records: list[SeqRecord]):
     """Return a list of warning strings: empty seqs, duplicate IDs, invalid chars."""
     warnings = []
     seen_ids = set()
@@ -27,7 +29,7 @@ def find_warnings(records):
     for record in records:
         if record.id in seen_ids:
             warnings.append(f"{record.id}: duplicate ID")
-        if len(record.seq) == 0:
+        if record.seq is None or len(record.seq) == 0:
             warnings.append(f"{record.id}: empty sequence")
         seen_ids.add(record.id)
 
@@ -49,7 +51,7 @@ def guess_molecule_type(seq):
     return "unknown"
 
 
-def check_file(path: str) -> bool:
+def check_file(path: Path) -> bool:
     """ "Checking the file is correct and exists"""
     if not path.is_file():
         print(f"error: file not found: {path}")
@@ -98,10 +100,11 @@ def read_file(path, type) -> dict[str, Any]:
     records = list(SeqIO.parse(path, type))
     return process_records(records)
 
+
 def process_records(records: list[SeqRecord]) -> dict[str, Any]:
-    lengths = [len(record.seq) for record in records]
+    lengths = [len(record.seq) if record.seq is not None else 0 for record in records]
     if not lengths:
-        print(f"{path}: 0 records")
+        print("0 records")
         return {}
 
     primary_result = {
