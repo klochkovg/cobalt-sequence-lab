@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from cobalt.analysis.inspect import read_file, find_warnings, guess_molecule_type
+from cobalt.analysis.inspect import read_file, find_warnings, guess_molecule_type, process_records
 
 from Bio.SeqRecord import SeqRecord;
 from Bio.Seq import Seq
@@ -58,3 +58,15 @@ def test_guess_molecule_type_dna():
     test_result = guess_molecule_type(Seq('AGCAUGW'))
     assert test_result == "protein"
 
+def test_type_finding():
+    test_data = [SeqRecord(Seq('ADGCUAGU'),
+                          id="seq1",
+                          annotations={
+                              "molecule_type": "DNA"
+                          })]
+    test_result = process_records(test_data)
+    # Dispite Uracil, distinct as DNA from metadata
+    assert test_result['records'][0]['type'] == 'DNA'
+
+    
+    

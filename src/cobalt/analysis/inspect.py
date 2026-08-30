@@ -96,7 +96,9 @@ def read_file(path, type) -> dict[str, Any]:
     """
 
     records = list(SeqIO.parse(path, type))
+    return process_records(records)
 
+def process_records(records: list[SeqRecord]) -> dict[str, Any]:
     lengths = [len(record.seq) for record in records]
     if not lengths:
         print(f"{path}: 0 records")
@@ -124,7 +126,7 @@ def read_file(path, type) -> dict[str, Any]:
             "sequence": seq_record.seq,
             "gc_fraction": calculate_gc_fraction(seq_record.seq),
             "ambiguity_fraction": calculate_ambiguity_fraction(seq_record, seq_type),
-            "type": guess_molecule_type(seq_record.seq),
+            "type": seq_type,
             "organism": seq_record.annotations.get("organism"),
             "molecule_type": seq_record.annotations.get("molecule_type"),
             "topology": seq_record.annotations.get("topology"),
