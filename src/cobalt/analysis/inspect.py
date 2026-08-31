@@ -68,6 +68,22 @@ def calculate_gc_fraction(seq):
     """Returns estimation of GC fraction"""
     return SeqUtils.gc_fraction(seq)
 
+VALID_DNA = set(IUPACData.ambiguous_dna_letters)
+VALID_RNA = set(IUPACData.ambiguous_rna_letters)
+VALID_PROTEIN = set(IUPACData.extended_protein_letters)
+
+
+def invalid_char_count(seq_record: SeqRecord, type: str) -> str:
+    """Calculate and return number of invalid symbols for the particular sequence"""
+    if seq_record.seq is None:
+        return "0"
+    seq_str = str(seq_record.seq).upper()
+    valid_letters = {
+        "DNA": VALID_DNA,
+        "RNA": VALID_RNA,
+        "protein": VALID_PROTEIN,
+    }.get(type, set())
+    return str(sum(1 for c in seq_str if c not in valid_letters))
 
 AMBIGUOUS_DNA = set(IUPACData.ambiguous_dna_letters) - set(IUPACData.unambiguous_dna_letters)
 AMBIGUOUS_RNA = set(IUPACData.ambiguous_rna_letters) - set(IUPACData.unambiguous_rna_letters)
@@ -117,7 +133,7 @@ def process_records(records: list[SeqRecord]) -> dict[str, Any]:
 
     result_array = []
     for seq_record in records:
-        seq_type = (
+        seq_type = str(
             seq_record.annotations.get("molecule_type")
             if seq_record.annotations.get("molecule_type")
             else guess_molecule_type(seq_record.seq)
@@ -128,7 +144,8 @@ def process_records(records: list[SeqRecord]) -> dict[str, Any]:
             "length": len(seq_record),
             "sequence": seq_record.seq,
             "gc_fraction": calculate_gc_fraction(seq_record.seq),
-            "ambiguity_fraction": calculate_ambiguity_fraction(seq_record, seq_type),
+            "ambiguity_fraction": calculate_ambiguity_fraction(seq_record.seq, seq_type),
+            "invalid_char_count": invalid_char_count(seq_record, seq_type),
             "type": seq_type,
             "organism": seq_record.annotations.get("organism"),
             "molecule_type": seq_record.annotations.get("molecule_type"),
