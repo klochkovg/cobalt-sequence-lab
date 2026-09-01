@@ -68,5 +68,17 @@ def test_type_finding():
     # Dispite Uracil, distinct as DNA from metadata
     assert test_result['records'][0]['type'] == 'DNA'
 
+def test_annotations():
+    test_data = [SeqRecord(Seq('ADGCUAGU'),
+                          id="seq1",
+                          annotations={
+                              "molecule_type": "DNA",
+                              "organism": "test_subject_1",
+                              "topology": "test_topology_1"
+                          })]
+    test_result = process_records(test_data)
+    assert test_result['records'][0]['type'] == 'DNA'
+    assert test_result['records'][0]['organism'] == 'test_subject_1'
+    assert test_result['records'][0]['topology'] == 'test_topology_1'
     
     
