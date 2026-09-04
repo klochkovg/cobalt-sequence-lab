@@ -6,7 +6,9 @@ from pathlib import Path
 import argparse
 import sys
 from collections.abc import Sequence
-from cobalt.analysis.inspect import read_file, FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
+from cobalt.analysis.inspect import read_file, process_records, FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
+from Bio.SeqRecord import SeqRecord
+from Bio.Seq import Seq
 
 import csv
 import json
@@ -17,7 +19,13 @@ from typing import TextIO
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for stats command."""
     parser = argparse.ArgumentParser(prog="cobalt stats")
-    parser.add_argument("input", help="Input FASTA/GenBank file")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("input", nargs="?", default=None, help="Input FASTA/GenBank file")
+    source.add_argument("--input",
+                        dest="raw_sequence", 
+                        metavar="SEQ", 
+                        help="Direct sequence string, e.g. --input AGCGCA")
+    
     parser.add_argument("--out", required=False, help="Output stats file path")
     parser.add_argument(
         "--json", action="store_true", required=False, help="Output present as JSON"
@@ -52,18 +60,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     """
     args = build_parser().parse_args(argv)
 
-    data_file_path = Path(args.input)
-    output_type = "json" if args.json else "csv"
-    if not check_file(data_file_path):
-        return 1
-    primary_result = {}
-    if data_file_path.suffix.lower() in FASTA_SUFFIXES:
-        primary_result = read_file(data_file_path, "fasta")
-    if data_file_path.suffix.lower() in GENBANK_SUFFIXES:
-        primary_result = read_file(data_file_path, "genbank")
+    if args.raw_sequence:
+        record = SeqRecord(Seq(args.raw_sequence), id="direct_input")
+        primary_result = process_records([record])
+    else:
+        data_file_path = Path(args.input)
+        if not check_file(data_file_path):
+            return 1
+        primary_result = {}
+        if data_file_path.suffix.lower() in FASTA_SUFFIXES:
+            primary_result = read_file(data_file_path, "fasta")
+        if data_file_path.suffix.lower() in GENBANK_SUFFIXES:
+            primary_result = read_file(data_file_path, "genbank")
+
     if not primary_result:
         print(f"{data_file_path}: 0 records")
         return 0
+
+    output_type = "json" if args.json else "csv"
     if args.out:
         try:
             with open(args.out, "w", newline="") as f:
