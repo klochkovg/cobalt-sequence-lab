@@ -10,6 +10,8 @@ dependencies:
   - typer
   - rich
   - pydantic
+  - fastapi
+  - uvicorn-standard
   - pytest
   - pytest-cov
   - ruff

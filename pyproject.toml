@@ -10,6 +10,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
 
+[project.optional-dependencies]
+serve = ["fastapi", "uvicorn[standard]"]
+
 [project.scripts]
 cobalt = "cobalt.cli.main:main"
 
