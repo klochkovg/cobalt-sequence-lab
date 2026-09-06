@@ -82,6 +82,11 @@ conda create -n biolab-dev -c conda-forge \
    - features summary
    - stats
    - QC notes
+6. REST API
+   - implementation of stats command through REST API
+   - implementation of inspect command through REST API
+   - implementation of validate command through REST API
+   - implementation of normalize command through REST API
 
 # Example of commands
 
@@ -90,6 +95,7 @@ cobalt inspect input.gb
 cobalt stats input.fasta --out stats.csv
 cobalt normalize input.gb --fasta cleaned.fasta
 cobalt validate input.fasta --report qc.json
+cobalt serve
 ```
 
 # some use (I'm not a seasoned Python programmer, so some strange things are possible)
@@ -109,3 +115,4 @@ pip install -e .
 
 - lack of tests
 - lack of precommit hooks for linter and tests
+- lack of API implementation, though some infrastructure is already created
