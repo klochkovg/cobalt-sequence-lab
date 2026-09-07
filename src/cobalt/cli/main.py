@@ -6,7 +6,7 @@ from cobalt import __version__
 import argparse
 from collections.abc import Sequence, Callable
 
-from cobalt.cli import inspect, normalize, stats, validate, help
+from cobalt.cli import inspect, normalize, stats, validate, help, serve
 
 
 COMMAND_HANDLERS: dict[str, Callable[[Sequence[str] | None], int]] = {
@@ -15,6 +15,7 @@ COMMAND_HANDLERS: dict[str, Callable[[Sequence[str] | None], int]] = {
     "normalize": normalize.main,
     "validate": validate.main,
     "help": help.main,
+    "serve": serve.main
 }
 
 
