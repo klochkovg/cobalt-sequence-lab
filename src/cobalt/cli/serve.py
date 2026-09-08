@@ -9,19 +9,36 @@ from collections.abc import Sequence
 
 from cobalt.analysis.inspect import read_file, FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
 
+import uvicorn
+from fastapi import FastAPI
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for serve command."""
     parser = argparse.ArgumentParser(prog="cobalt serve")
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     return parser
 
 
+def build_app() -> FastAPI:
+    """Build the FastAPI application."""
+    app = FastAPI()
+
+    @app.get("/")
+    async def root():
+        return {"message": "Hello World"}
+
+    return app
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    """Entry point for the serve command.
-    STUB
-    """
-    print("Stub serve command")
+    """Entry point for the serve command."""
     args = build_parser().parse_args(argv)
+
+    app = build_app()
+    uvicorn.run(app, host=args.host, port=args.port)
+
     return 0
 
 
