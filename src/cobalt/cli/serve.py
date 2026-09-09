@@ -7,10 +7,35 @@ import argparse
 from collections.abc import Sequence
 
 
-from cobalt.analysis.inspect import read_file, FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
+from cobalt.analysis.inspect import (
+    read_file,
+    FASTA_SUFFIXES,
+    GENBANK_SUFFIXES,
+    check_file,
+    process_records,
+    STATS_FIELDNAMES,
+)
 
 import uvicorn
 from fastapi import FastAPI
+from pydantic import BaseModel
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+
+
+class StatsRequest(BaseModel):
+    """Request body for manual sequence input."""
+
+    sequence: str
+
+
+class StatsRecord(BaseModel):
+    """One row of the stats output, mirroring `cobalt stats --json`."""
+
+    id: str
+    length: int
+    gc_fraction: float
+    type: str
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,6 +53,13 @@ def build_app() -> FastAPI:
     @app.get("/")
     async def root():
         return {"message": "Hello World"}
+
+    @app.post("/stats", response_model=list[StatsRecord])
+    async def stats(body: StatsRequest):
+        seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
+        primary_result = process_records([seq_record])
+        records = primary_result["records"] if primary_result else []
+        return [{name: rec[name] for name in STATS_FIELDNAMES} for rec in records]
 
     return app
 

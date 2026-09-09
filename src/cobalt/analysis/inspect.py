@@ -19,6 +19,8 @@ PROTEIN_LETTERS = set(IUPACData.extended_protein_letters)
 FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
 GENBANK_SUFFIXES = {".gbk", ".gk", ".gp", "gpt"}
 
+STATS_FIELDNAMES = ["id", "length", "gc_fraction", "type"]
+
 
 def find_warnings(records: list[SeqRecord]):
     """Return a list of warning strings: empty seqs, duplicate IDs, invalid chars."""

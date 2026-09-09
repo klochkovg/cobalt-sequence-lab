@@ -6,7 +6,14 @@ from pathlib import Path
 import argparse
 import sys
 from collections.abc import Sequence
-from cobalt.analysis.inspect import read_file, process_records, FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
+from cobalt.analysis.inspect import (
+    read_file,
+    process_records,
+    FASTA_SUFFIXES,
+    GENBANK_SUFFIXES,
+    check_file,
+    STATS_FIELDNAMES,
+)
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 
@@ -34,16 +41,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def write_stats_csv(file: TextIO, records: dict) -> None:
-    fieldnames = ["id", "length", "gc_fraction", "type"]
-    writer = csv.DictWriter(file, fieldnames=fieldnames, extrasaction="ignore")
+    writer = csv.DictWriter(file, fieldnames=STATS_FIELDNAMES, extrasaction="ignore")
     writer.writeheader()
     for record in records:
         writer.writerow(record)
 
 
 def write_stats_json(file: TextIO, records: dict) -> None:
-    fieldnames = ["id", "length", "gc_fraction", "type"]
-    filtered_records = [{name: record[name] for name in fieldnames} for record in records]
+    filtered_records = [{name: record[name] for name in STATS_FIELDNAMES} for record in records]
     json.dump(filtered_records, file, indent=2)
 
 
