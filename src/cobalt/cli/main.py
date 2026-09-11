@@ -15,7 +15,7 @@ COMMAND_HANDLERS: dict[str, Callable[[Sequence[str] | None], int]] = {
     "normalize": normalize.main,
     "validate": validate.main,
     "help": help.main,
-    "serve": serve.main
+    "serve": serve.main,
 }
 
 

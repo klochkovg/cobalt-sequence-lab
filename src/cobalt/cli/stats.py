@@ -2,25 +2,25 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import argparse
-import sys
-from collections.abc import Sequence
-from cobalt.analysis.inspect import (
-    read_file,
-    process_records,
-    FASTA_SUFFIXES,
-    GENBANK_SUFFIXES,
-    check_file,
-    STATS_FIELDNAMES,
-)
-from Bio.SeqRecord import SeqRecord
-from Bio.Seq import Seq
-
 import csv
 import json
-
+import sys
+from collections.abc import Sequence
+from pathlib import Path
 from typing import TextIO
+
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+
+from cobalt.analysis.inspect import (
+    FASTA_SUFFIXES,
+    GENBANK_SUFFIXES,
+    STATS_FIELDNAMES,
+    check_file,
+    process_records,
+    read_file,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,11 +28,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cobalt stats")
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("input", nargs="?", default=None, help="Input FASTA/GenBank file")
-    source.add_argument("--input",
-                        dest="raw_sequence", 
-                        metavar="SEQ", 
-                        help="Direct sequence string, e.g. --input AGCGCA")
-    
+    source.add_argument(
+        "--input",
+        dest="raw_sequence",
+        metavar="SEQ",
+        help="Direct sequence string, e.g. --input AGCGCA",
+    )
+
     parser.add_argument("--out", required=False, help="Output stats file path")
     parser.add_argument(
         "--json", action="store_true", required=False, help="Output present as JSON"

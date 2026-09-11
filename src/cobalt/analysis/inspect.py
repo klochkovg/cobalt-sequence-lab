@@ -70,6 +70,7 @@ def calculate_gc_fraction(seq):
     """Returns estimation of GC fraction"""
     return SeqUtils.gc_fraction(seq)
 
+
 VALID_DNA = set(IUPACData.ambiguous_dna_letters)
 VALID_RNA = set(IUPACData.ambiguous_rna_letters)
 VALID_PROTEIN = set(IUPACData.extended_protein_letters)
@@ -86,6 +87,7 @@ def invalid_char_count(seq_record: SeqRecord, type: str) -> str:
         "protein": VALID_PROTEIN,
     }.get(type, set())
     return str(sum(1 for c in seq_str if c not in valid_letters))
+
 
 AMBIGUOUS_DNA = set(IUPACData.ambiguous_dna_letters) - set(IUPACData.unambiguous_dna_letters)
 AMBIGUOUS_RNA = set(IUPACData.ambiguous_rna_letters) - set(IUPACData.unambiguous_rna_letters)

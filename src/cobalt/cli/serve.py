@@ -1,26 +1,20 @@
-""" Cli command: serve."""
-
+"""Cli command: serve."""
 
 from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
 
-
-from cobalt.analysis.inspect import (
-    read_file,
-    FASTA_SUFFIXES,
-    GENBANK_SUFFIXES,
-    check_file,
-    process_records,
-    STATS_FIELDNAMES,
-)
-
 import uvicorn
-from fastapi import FastAPI
-from pydantic import BaseModel
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+from cobalt.analysis.inspect import (
+    STATS_FIELDNAMES,
+    process_records,
+)
 
 
 class StatsRequest(BaseModel):

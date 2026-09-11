@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Sequence
 from pathlib import Path
-import sys
-from cobalt.analysis.inspect import read_file, FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
+
+from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file, read_file
 from cobalt.cli.stats import write_stats_csv
 
 
