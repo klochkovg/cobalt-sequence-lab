@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from cobalt import __version__
 import argparse
-from collections.abc import Sequence, Callable
+from collections.abc import Callable, Sequence
 
-from cobalt.cli import inspect, normalize, stats, validate, help, serve
-
+from cobalt import __version__
+from cobalt.cli import help, inspect, normalize, serve, stats, validate
 
 COMMAND_HANDLERS: dict[str, Callable[[Sequence[str] | None], int]] = {
     "inspect": inspect.main,

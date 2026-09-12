@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-
-from Bio import SeqUtils
-
-from Bio import SeqIO
+from Bio import SeqIO, SeqUtils
 from Bio.Data import IUPACData
 from Bio.SeqRecord import SeqRecord
-from pathlib import Path
 
 DNA_LETTERS = set("ACGTN")
 RNA_LETTERS = set("ACGUN")

@@ -6,7 +6,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from cobalt.analysis.inspect import read_file, FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
+from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file, read_file
 
 
 def print_file_results(path: Path, result: dict) -> None:
@@ -21,8 +21,8 @@ def print_file_results(path: Path, result: dict) -> None:
 def print_record(record: dict) -> None:
     print(f"Sequence name   : {record['id']}")
     print(f"Sequence length : {record['length']}")
-    print(f"Sequence        : {str(record['sequence'])}")
-    print(f"GC fraction     : {repr(record['gc_fraction'])}")
+    print(f"Sequence        : {record['sequence']!s}")
+    print(f"GC fraction     : {record['gc_fraction']!r}")
     print(f"Type guess      : {record['type']}")
     if record["type"]:
         print(f"Type            : {record['molecule_type']}")

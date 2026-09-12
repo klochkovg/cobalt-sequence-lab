@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 
 
 def compute_base_composition(sequence: str) -> Mapping[str, float]:
