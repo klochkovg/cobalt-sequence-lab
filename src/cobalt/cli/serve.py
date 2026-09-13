@@ -11,6 +11,7 @@ from Bio.SeqRecord import SeqRecord
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from cobalt import __version__
 from cobalt.analysis.inspect import (
     STATS_FIELDNAMES,
     process_records,
@@ -46,7 +47,8 @@ def build_app() -> FastAPI:
 
     @app.get("/")
     async def root():
-        return {"message": "Hello World"}
+        return {"title": "Cobalt Sequence Lab",
+                "version": __version__}
 
     @app.post("/stats", response_model=list[StatsRecord])
     async def stats(body: StatsRequest):
