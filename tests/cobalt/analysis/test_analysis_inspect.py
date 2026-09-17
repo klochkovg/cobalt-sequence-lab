@@ -64,7 +64,7 @@ def test_type_finding():
                           annotations={
                               "molecule_type": "DNA"
                           })]
-    test_result = process_records(test_data)
+    test_result = process_records(test_data, "raw")
     # Dispite Uracil, distinct as DNA from metadata
     assert test_result['records'][0]['type'] == 'DNA'
 
@@ -76,7 +76,7 @@ def test_annotations():
                               "organism": "test_subject_1",
                               "topology": "test_topology_1"
                           })]
-    test_result = process_records(test_data)
+    test_result = process_records(test_data, "raw")
     assert test_result['records'][0]['type'] == 'DNA'
     assert test_result['records'][0]['organism'] == 'test_subject_1'
     assert test_result['records'][0]['topology'] == 'test_topology_1'

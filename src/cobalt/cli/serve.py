@@ -53,7 +53,7 @@ def build_app() -> FastAPI:
     @app.post("/stats", response_model=list[StatsRecord])
     async def stats(body: StatsRequest):
         seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
-        primary_result = process_records([seq_record])
+        primary_result = process_records([seq_record], "raw")
         records = primary_result["records"] if primary_result else []
         return [{name: rec[name] for name in STATS_FIELDNAMES} for rec in records]
 

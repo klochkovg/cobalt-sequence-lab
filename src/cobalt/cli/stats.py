@@ -69,7 +69,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.raw_sequence:
         record = SeqRecord(Seq(args.raw_sequence), id="direct_input")
-        primary_result = process_records([record])
+        primary_result = process_records([record], "raw")
     else:
         data_file_path = Path(args.input)
         if not check_file(data_file_path):

@@ -15,3 +15,4 @@ def test_stats_cmd_input(capsys):
     assert record['id'] == 'direct_input'
     assert record['length'] == 36
     assert record['type'] == 'DNA'
+    assert record['source_format'] == "raw"

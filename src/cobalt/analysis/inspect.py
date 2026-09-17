@@ -16,7 +16,7 @@ PROTEIN_LETTERS = set(IUPACData.extended_protein_letters)
 FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
 GENBANK_SUFFIXES = {".gbk", ".gk", ".gp", "gpt"}
 
-STATS_FIELDNAMES = ["id", "length", "gc_fraction", "type"]
+STATS_FIELDNAMES = ["id", "length", "gc_fraction", "type", "source_format"]
 
 
 def find_warnings(records: list[SeqRecord]):
@@ -115,10 +115,10 @@ def read_file(path, type) -> dict[str, Any]:
     """
 
     records = list(SeqIO.parse(path, type))
-    return process_records(records)
+    return process_records(records, type)
 
 
-def process_records(records: list[SeqRecord]) -> dict[str, Any]:
+def process_records(records: list[SeqRecord], type: str) -> dict[str, Any]:
     lengths = [len(record.seq) if record.seq is not None else 0 for record in records]
     if not lengths:
         print("0 records")
@@ -130,6 +130,7 @@ def process_records(records: list[SeqRecord]) -> dict[str, Any]:
         "min": min(lengths),
         "max": max(lengths),
         "mean": sum(lengths) / len(lengths),
+        "type": type
     }
 
     result_array = []
@@ -147,6 +148,7 @@ def process_records(records: list[SeqRecord]) -> dict[str, Any]:
             "gc_fraction": calculate_gc_fraction(seq_record.seq),
             "ambiguity_fraction": calculate_ambiguity_fraction(seq_record.seq, seq_type),
             "invalid_char_count": invalid_char_count(seq_record, seq_type),
+            "source_format": type,
             "type": seq_type,
             "organism": seq_record.annotations.get("organism"),
             "molecule_type": seq_record.annotations.get("molecule_type"),
