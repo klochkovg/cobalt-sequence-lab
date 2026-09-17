@@ -16,7 +16,15 @@ PROTEIN_LETTERS = set(IUPACData.extended_protein_letters)
 FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
 GENBANK_SUFFIXES = {".gbk", ".gk", ".gp", "gpt"}
 
-STATS_FIELDNAMES = ["id", "length", "gc_fraction", "type", "source_format"]
+STATS_FIELDNAMES = ["id", 
+                    "length", 
+                    "description", 
+                    "gc_fraction", 
+                    "type", 
+                    "source_format", 
+                    "alphabetic_class",
+                    "ambiguity_fraction",
+                    "invalid_char_count"]
 
 
 def find_warnings(records: list[SeqRecord]):
@@ -91,6 +99,40 @@ AMBIGUOUS_RNA = set(IUPACData.ambiguous_rna_letters) - set(IUPACData.unambiguous
 AMBIGUOUS_PROTEIN = set(IUPACData.extended_protein_letters) - set(IUPACData.protein_letters)
 
 
+def calculate_alphabet_class(seq, molecule_type) -> str:
+    """Classify the sequence's alphabet relative to the IUPAC letter tiers.
+
+    Returns "unambiguous" if every letter is in the strict (non-ambiguity-code)
+    alphabet for `molecule_type`, "ambiguous" if it uses IUPAC ambiguity codes
+    but nothing outside the valid alphabet, "invalid" if it contains characters
+    outside the valid alphabet entirely, or "unknown" if the sequence is empty
+    or `molecule_type` isn't recognized.
+    """
+    seq_str = str(seq).upper()
+    if not seq_str:
+        return "unknown"
+
+    valid_letters = {
+        "DNA": VALID_DNA,
+        "RNA": VALID_RNA,
+        "protein": VALID_PROTEIN,
+    }.get(molecule_type)
+    if valid_letters is None:
+        return "unknown"
+
+    ambiguity_letters = {
+        "DNA": AMBIGUOUS_DNA,
+        "RNA": AMBIGUOUS_RNA,
+        "protein": AMBIGUOUS_PROTEIN,
+    }[molecule_type]
+
+    letters = set(seq_str)
+    if letters - valid_letters:
+        return "invalid"
+    if letters & ambiguity_letters:
+        return "ambiguous"
+    return "unambiguous"
+
 def calculate_ambiguity_fraction(seq, molecule_type):
     seq_str = str(seq).upper()
     if not seq_str:
@@ -148,6 +190,7 @@ def process_records(records: list[SeqRecord], type: str) -> dict[str, Any]:
             "gc_fraction": calculate_gc_fraction(seq_record.seq),
             "ambiguity_fraction": calculate_ambiguity_fraction(seq_record.seq, seq_type),
             "invalid_char_count": invalid_char_count(seq_record, seq_type),
+            "alphabetic_class": calculate_alphabet_class(seq_record, seq_type),
             "source_format": type,
             "type": seq_type,
             "organism": seq_record.annotations.get("organism"),

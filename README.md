@@ -50,7 +50,7 @@ conda create -n biolab-dev -c conda-forge \
 
 # Supposed capabilities (stage 1)
 
-1. Inspect command
+1. Inspect command (DONE)
    - number of records
    - guessed molecule types
    - min/max/mean length
@@ -65,7 +65,7 @@ conda create -n biolab-dev -c conda-forge \
    - ambiguity fraction
    - invalid char count
    - source format
-   - selected annotations if present
+   - selected annotations if present (Do I need it?)
 3. Validate commands, emit structured QC
    - fatal errors
    - warnings
