@@ -18,7 +18,7 @@ from cobalt.analysis.inspect import (
 )
 
 
-class StatsRequest(BaseModel):
+class SequenceRequest(BaseModel):
     """Request body for manual sequence input."""
 
     sequence: str
@@ -51,7 +51,14 @@ def build_app() -> FastAPI:
                 "version": __version__}
 
     @app.post("/stats", response_model=list[StatsRecord])
-    async def stats(body: StatsRequest):
+    async def stats(body: SequenceRequest):
+        seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
+        primary_result = process_records([seq_record], "raw")
+        records = primary_result["records"] if primary_result else []
+        return [{name: rec[name] for name in STATS_FIELDNAMES} for rec in records]
+
+    @app.post("/inspect", response_model=list[StatsRecord])
+    async def inspect(body: SequenceRequest):
         seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
         primary_result = process_records([seq_record], "raw")
         records = primary_result["records"] if primary_result else []
