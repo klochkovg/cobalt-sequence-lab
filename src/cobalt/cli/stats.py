@@ -7,6 +7,8 @@ import csv
 import json
 import sys
 from collections.abc import Sequence
+from copy import deepcopy
+from enum import Enum
 from pathlib import Path
 from typing import TextIO
 
@@ -21,6 +23,11 @@ from cobalt.analysis.inspect import (
     process_records,
     read_file,
 )
+
+class SortingOrder(Enum):
+    ID = "id"
+    LENGTH = "length"
+
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -42,23 +49,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def write_stats_csv(file: TextIO, records: dict) -> None:
+def write_stats_csv(file: TextIO, records: dict, order: SortingOrder) -> None:
     writer = csv.DictWriter(file, fieldnames=STATS_FIELDNAMES, extrasaction="ignore")
     writer.writeheader()
     for record in records:
         writer.writerow(record)
 
 
-def write_stats_json(file: TextIO, records: dict) -> None:
+def write_stats_json(file: TextIO, records: dict, order: SortingOrder) -> None:
+    sorted(records, key = lambda k: k[order.value])
     filtered_records = [{name: record[name] for name in STATS_FIELDNAMES} for record in records]
     json.dump(filtered_records, file, indent=2)
 
 
-def write_stats(type: str, file: TextIO, records: dict) -> None:
+def write_stats(type: str, file: TextIO, records: dict, order: SortingOrder = SortingOrder.ID) -> None:
     if type == "csv":
-        write_stats_csv(file, records)
+        write_stats_csv(file, records, order)
     elif type == "json":
-        write_stats_json(file, records)
+        write_stats_json(file, records, order)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
