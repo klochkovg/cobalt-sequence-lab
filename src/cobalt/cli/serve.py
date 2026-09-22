@@ -14,8 +14,9 @@ from pydantic import BaseModel
 from cobalt import __version__
 from cobalt.analysis.inspect import (
     STATS_FIELDNAMES,
-    process_records,
 )
+
+from cobalt.analysis.processor import process_records
 
 
 class SequenceRequest(BaseModel):
@@ -59,6 +60,20 @@ def build_app() -> FastAPI:
 
     @app.post("/inspect", response_model=list[StatsRecord])
     async def inspect(body: SequenceRequest):
+        seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
+        primary_result = process_records([seq_record], "raw")
+        records = primary_result["records"] if primary_result else []
+        return [{name: rec[name] for name in STATS_FIELDNAMES} for rec in records]
+
+    @app.post("/validate", response_model=list[StatsRecord])
+    async def validate(body: SequenceRequest):
+        seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
+        primary_result = process_records([seq_record], "raw")
+        records = primary_result["records"] if primary_result else []
+        return [{name: rec[name] for name in STATS_FIELDNAMES} for rec in records]
+
+    @app.post("/normalize", response_model=list[StatsRecord])
+    async def normalize(body: SequenceRequest):
         seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
         primary_result = process_records([seq_record], "raw")
         records = primary_result["records"] if primary_result else []

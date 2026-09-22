@@ -20,9 +20,9 @@ from cobalt.analysis.inspect import (
     GENBANK_SUFFIXES,
     STATS_FIELDNAMES,
     check_file,
-    process_records,
     read_file,
 )
+from cobalt.analysis.processor import process_records
 
 class SortingOrder(Enum):
     ID = "id"

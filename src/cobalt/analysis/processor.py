@@ -1,4 +1,4 @@
-"""Inspect Implementation."""
+"""Main processing code."""
 
 from __future__ import annotations
 
@@ -8,8 +8,6 @@ from typing import Any
 from Bio import SeqIO, SeqUtils
 from Bio.Data import IUPACData
 from Bio.SeqRecord import SeqRecord
-
-from cobalt.analysis.processor import process_records
 
 DNA_LETTERS = set("ACGTN")
 RNA_LETTERS = set("ACGUN")
@@ -160,3 +158,46 @@ def read_file(path, type) -> dict[str, Any]:
 
     records = list(SeqIO.parse(path, type))
     return process_records(records, type)
+
+
+def process_records(records: list[SeqRecord], type: str) -> dict[str, Any]:
+    lengths = [len(record.seq) if record.seq is not None else 0 for record in records]
+    if not lengths:
+        print("0 records")
+        return {}
+
+    primary_result = {
+        "warnings": find_warnings(records),
+        "records_num": len(lengths),
+        "min": min(lengths),
+        "max": max(lengths),
+        "mean": sum(lengths) / len(lengths),
+        "type": type
+    }
+
+    result_array = []
+    for seq_record in records:
+        seq_type = str(
+            seq_record.annotations.get("molecule_type")
+            if seq_record.annotations.get("molecule_type")
+            else guess_molecule_type(seq_record.seq)
+        )
+        result = {
+            "id": seq_record.id,
+            "description": seq_record.description,
+            "length": len(seq_record),
+            "sequence": seq_record.seq,
+            "gc_fraction": calculate_gc_fraction(seq_record.seq),
+            "ambiguity_fraction": calculate_ambiguity_fraction(seq_record.seq, seq_type),
+            "invalid_char_count": invalid_char_count(seq_record, seq_type),
+            "alphabetic_class": calculate_alphabet_class(seq_record, seq_type),
+            "source_format": type,
+            "type": seq_type,
+            "organism": seq_record.annotations.get("organism"),
+            "molecule_type": seq_record.annotations.get("molecule_type"),
+            "topology": seq_record.annotations.get("topology"),
+            "feature_count": len(seq_record.features),
+        }
+        result_array.append(result)
+    primary_result["records"] = result_array
+    return primary_result
