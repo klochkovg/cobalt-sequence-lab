@@ -7,7 +7,6 @@ import csv
 import json
 import sys
 from collections.abc import Sequence
-from copy import deepcopy
 from enum import Enum
 from pathlib import Path
 from typing import TextIO
@@ -24,10 +23,10 @@ from cobalt.analysis.inspect import (
 )
 from cobalt.analysis.processor import process_records
 
+
 class SortingOrder(Enum):
     ID = "id"
     LENGTH = "length"
-
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -57,12 +56,14 @@ def write_stats_csv(file: TextIO, records: dict, order: SortingOrder) -> None:
 
 
 def write_stats_json(file: TextIO, records: dict, order: SortingOrder) -> None:
-    sorted(records, key = lambda k: k[order.value])
+    sorted(records, key=lambda k: k[order.value])
     filtered_records = [{name: record[name] for name in STATS_FIELDNAMES} for record in records]
     json.dump(filtered_records, file, indent=2)
 
 
-def write_stats(type: str, file: TextIO, records: dict, order: SortingOrder = SortingOrder.ID) -> None:
+def write_stats(
+    type: str, file: TextIO, records: dict, order: SortingOrder = SortingOrder.ID
+) -> None:
     if type == "csv":
         write_stats_csv(file, records, order)
     elif type == "json":

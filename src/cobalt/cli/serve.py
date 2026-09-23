@@ -12,10 +12,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from cobalt import __version__
-from cobalt.analysis.inspect import (
-    STATS_FIELDNAMES,
-)
-
+from cobalt.analysis.inspect import STATS_FIELDNAMES
 from cobalt.analysis.processor import process_records
 
 
@@ -48,8 +45,7 @@ def build_app() -> FastAPI:
 
     @app.get("/")
     async def root():
-        return {"title": "Cobalt Sequence Lab",
-                "version": __version__}
+        return {"title": "Cobalt Sequence Lab", "version": __version__}
 
     @app.post("/stats", response_model=list[StatsRecord])
     async def stats(body: SequenceRequest):

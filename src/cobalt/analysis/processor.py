@@ -16,15 +16,17 @@ PROTEIN_LETTERS = set(IUPACData.extended_protein_letters)
 FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
 GENBANK_SUFFIXES = {".gbk", ".gk", ".gp", "gpt"}
 
-STATS_FIELDNAMES = ["id", 
-                    "length", 
-                    "description", 
-                    "gc_fraction", 
-                    "type", 
-                    "source_format", 
-                    "alphabetic_class",
-                    "ambiguity_fraction",
-                    "invalid_char_count"]
+STATS_FIELDNAMES = [
+    "id",
+    "length",
+    "description",
+    "gc_fraction",
+    "type",
+    "source_format",
+    "alphabetic_class",
+    "ambiguity_fraction",
+    "invalid_char_count",
+]
 
 
 def find_warnings(records: list[SeqRecord]):
@@ -133,6 +135,7 @@ def calculate_alphabet_class(seq, molecule_type) -> str:
         return "ambiguous"
     return "unambiguous"
 
+
 def calculate_ambiguity_fraction(seq, molecule_type):
     seq_str = str(seq).upper()
     if not seq_str:
@@ -172,7 +175,7 @@ def process_records(records: list[SeqRecord], type: str) -> dict[str, Any]:
         "min": min(lengths),
         "max": max(lengths),
         "mean": sum(lengths) / len(lengths),
-        "type": type
+        "type": type,
     }
 
     result_array = []

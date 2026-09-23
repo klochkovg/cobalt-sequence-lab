@@ -3,13 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
-from Bio import SeqIO, SeqUtils
 from Bio.Data import IUPACData
 from Bio.SeqRecord import SeqRecord
-
-from cobalt.analysis.processor import process_records, read_file
 
 DNA_LETTERS = set("ACGTN")
 RNA_LETTERS = set("ACGUN")
@@ -18,15 +14,17 @@ PROTEIN_LETTERS = set(IUPACData.extended_protein_letters)
 FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
 GENBANK_SUFFIXES = {".gbk", ".gk", ".gp", "gpt"}
 
-STATS_FIELDNAMES = ["id", 
-                    "length", 
-                    "description", 
-                    "gc_fraction", 
-                    "type", 
-                    "source_format", 
-                    "alphabetic_class",
-                    "ambiguity_fraction",
-                    "invalid_char_count"]
+STATS_FIELDNAMES = [
+    "id",
+    "length",
+    "description",
+    "gc_fraction",
+    "type",
+    "source_format",
+    "alphabetic_class",
+    "ambiguity_fraction",
+    "invalid_char_count",
+]
 
 
 def find_warnings(records: list[SeqRecord]):
