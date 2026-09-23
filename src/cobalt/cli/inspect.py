@@ -6,7 +6,8 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file, read_file
+from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
+from cobalt.analysis.processor import read_file
 
 
 def print_file_results(path: Path, result: dict) -> None:

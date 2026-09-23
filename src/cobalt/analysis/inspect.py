@@ -9,7 +9,7 @@ from Bio import SeqIO, SeqUtils
 from Bio.Data import IUPACData
 from Bio.SeqRecord import SeqRecord
 
-from cobalt.analysis.processor import process_records
+from cobalt.analysis.processor import process_records, read_file
 
 DNA_LETTERS = set("ACGTN")
 RNA_LETTERS = set("ACGUN")
@@ -71,92 +71,3 @@ def check_file(path: Path) -> bool:
         )
         return False
     return True
-
-
-def calculate_gc_fraction(seq):
-    """Returns estimation of GC fraction"""
-    return SeqUtils.gc_fraction(seq)
-
-
-VALID_DNA = set(IUPACData.ambiguous_dna_letters)
-VALID_RNA = set(IUPACData.ambiguous_rna_letters)
-VALID_PROTEIN = set(IUPACData.extended_protein_letters)
-
-
-def invalid_char_count(seq_record: SeqRecord, type: str) -> str:
-    """Calculate and return number of invalid symbols for the particular sequence"""
-    if seq_record.seq is None:
-        return "0"
-    seq_str = str(seq_record.seq).upper()
-    valid_letters = {
-        "DNA": VALID_DNA,
-        "RNA": VALID_RNA,
-        "protein": VALID_PROTEIN,
-    }.get(type, set())
-    return str(sum(1 for c in seq_str if c not in valid_letters))
-
-
-AMBIGUOUS_DNA = set(IUPACData.ambiguous_dna_letters) - set(IUPACData.unambiguous_dna_letters)
-AMBIGUOUS_RNA = set(IUPACData.ambiguous_rna_letters) - set(IUPACData.unambiguous_rna_letters)
-AMBIGUOUS_PROTEIN = set(IUPACData.extended_protein_letters) - set(IUPACData.protein_letters)
-
-
-def calculate_alphabet_class(seq, molecule_type) -> str:
-    """Classify the sequence's alphabet relative to the IUPAC letter tiers.
-
-    Returns "unambiguous" if every letter is in the strict (non-ambiguity-code)
-    alphabet for `molecule_type`, "ambiguous" if it uses IUPAC ambiguity codes
-    but nothing outside the valid alphabet, "invalid" if it contains characters
-    outside the valid alphabet entirely, or "unknown" if the sequence is empty
-    or `molecule_type` isn't recognized.
-    """
-    seq_str = str(seq).upper()
-    if not seq_str:
-        return "unknown"
-
-    valid_letters = {
-        "DNA": VALID_DNA,
-        "RNA": VALID_RNA,
-        "protein": VALID_PROTEIN,
-    }.get(molecule_type)
-    if valid_letters is None:
-        return "unknown"
-
-    ambiguity_letters = {
-        "DNA": AMBIGUOUS_DNA,
-        "RNA": AMBIGUOUS_RNA,
-        "protein": AMBIGUOUS_PROTEIN,
-    }[molecule_type]
-
-    letters = set(seq_str)
-    if letters - valid_letters:
-        return "invalid"
-    if letters & ambiguity_letters:
-        return "ambiguous"
-    return "unambiguous"
-
-def calculate_ambiguity_fraction(seq, molecule_type):
-    seq_str = str(seq).upper()
-    if not seq_str:
-        return 0.0
-    ambiguity_letters = {
-        "DNA": AMBIGUOUS_DNA,
-        "RNA": AMBIGUOUS_RNA,
-        "protein": AMBIGUOUS_PROTEIN,
-    }.get(molecule_type, set())
-    ambiguous_count = sum(1 for c in seq_str if c in ambiguity_letters)
-    return ambiguous_count / len(seq_str)
-
-
-def read_file(path, type) -> dict[str, Any]:
-    """Provide some general information about records.
-    What should be implemented:
-    - number of records
-    - guessed molecule types
-    - min/max/mean length
-    - formats detected
-    - warning counts
-    """
-
-    records = list(SeqIO.parse(path, type))
-    return process_records(records, type)
