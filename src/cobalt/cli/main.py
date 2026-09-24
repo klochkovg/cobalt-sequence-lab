@@ -3,10 +3,26 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Callable, Sequence
 
 from cobalt import __version__
-from cobalt.cli import help, inspect, normalize, serve, stats, validate
+from cobalt.cli import help, inspect, normalize, stats, validate
+
+
+def _serve_main(argv: Sequence[str] | None) -> int:
+    """Run `serve`, importing it lazily because its dependencies are optional."""
+    try:
+        from cobalt.cli import serve
+    except ImportError as exc:
+        print(
+            f"cobalt serve requires optional dependencies ({exc.name} is missing).\n"
+            'Install them with: pip install "cobalt-sequence-lab[serve]"',
+            file=sys.stderr,
+        )
+        return 1
+    return serve.main(argv)
+
 
 COMMAND_HANDLERS: dict[str, Callable[[Sequence[str] | None], int]] = {
     "inspect": inspect.main,
@@ -14,7 +30,7 @@ COMMAND_HANDLERS: dict[str, Callable[[Sequence[str] | None], int]] = {
     "normalize": normalize.main,
     "validate": validate.main,
     "help": help.main,
-    "serve": serve.main,
+    "serve": _serve_main,
 }
 
 

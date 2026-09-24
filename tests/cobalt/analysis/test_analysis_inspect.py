@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from cobalt.analysis.inspect import read_file, find_warnings, guess_molecule_type
-from cobalt.analysis.processor import process_records
+from cobalt.analysis.inspect import find_warnings, guess_molecule_type
+from cobalt.analysis.processor import read_file, process_records
 
 from Bio.SeqRecord import SeqRecord;
 from Bio.Seq import Seq

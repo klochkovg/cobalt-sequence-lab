@@ -7,8 +7,8 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file, read_file
-from cobalt.cli.stats import write_stats_csv
+from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
+from cobalt.cli.stats import read_file, write_stats_csv
 
 
 def build_parser() -> argparse.ArgumentParser:

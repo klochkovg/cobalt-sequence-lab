@@ -8,10 +8,18 @@ version = "0.1.0"
 description = "Sequence processing CLI experiments with Biopython"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["biopython>=1.83"]
 
 [project.optional-dependencies]
-serve = ["fastapi", "uvicorn[standard]"]
+serve = ["fastapi", "uvicorn[standard]", "pydantic>=2"]
+dev = [
+    "cobalt-sequence-lab[serve]",
+    "pytest",
+    "pytest-cov",
+    "httpx",  # required by fastapi.testclient
+    "ruff",
+    "mypy",
+]
 
 [project.scripts]
 cobalt = "cobalt.cli.main:main"
