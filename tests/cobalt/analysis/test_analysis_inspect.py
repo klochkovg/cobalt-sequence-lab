@@ -14,72 +14,76 @@ def test_read_file_counts_orchid_records_fasta():
     assert result["records_num"] > 0
     assert result["min"] <= result["mean"] <= result["max"]
 
+
 def test_read_file_counts_orchid_records_genbank():
     result = read_file(DATA_DIR / "ls_orchid.gbk", "genbank")
     assert result["records_num"] > 0
     assert result["min"] <= result["mean"] <= result["max"]
 
+
 def test_find_warnings_empty_records():
-    input_data: list[SeqRecord] =  [
-            SeqRecord(Seq('ADGCTAGT'), id="seq1"),
-            SeqRecord(Seq('TTGCTAGT'), id="seq2"),
-            SeqRecord(Seq(''), id="seq3")
-        ]
+    input_data: list[SeqRecord] = [
+        SeqRecord(Seq("ADGCTAGT"), id="seq1"),
+        SeqRecord(Seq("TTGCTAGT"), id="seq2"),
+        SeqRecord(Seq(""), id="seq3"),
+    ]
     warnings = find_warnings(input_data)
     assert len(warnings) == 1
     print(warnings[0])
     assert warnings[0] == "seq3: empty sequence"
 
+
 def test_find_warnings_invalid_character():
-    input_data: list[SeqRecord] =  [
-            SeqRecord(Seq('ADGCTAGT'), id="seq1"),
-            SeqRecord(Seq('TTGCTAGT'), id="seq2"),
-            SeqRecord(Seq('ADCCTZGT'), id="seq3")
-        ]
+    input_data: list[SeqRecord] = [
+        SeqRecord(Seq("ADGCTAGT"), id="seq1"),
+        SeqRecord(Seq("TTGCTAGT"), id="seq2"),
+        SeqRecord(Seq("ADCCTZGT"), id="seq3"),
+    ]
     warnings = find_warnings(input_data)
     assert len(warnings) == 1
     assert warnings[0] == "seq3: invalid characters ['Z']"
 
+
 def test_find_warnings_duplicate_ids():
-    input_data: list[SeqRecord] =  [
-            SeqRecord(Seq('ADGCTAGT'), id="seq1"),
-            SeqRecord(Seq('TTGCTAGT'), id="seq2"),
-            SeqRecord(Seq('ADCCTGT'), id="seq2")
-        ]
+    input_data: list[SeqRecord] = [
+        SeqRecord(Seq("ADGCTAGT"), id="seq1"),
+        SeqRecord(Seq("TTGCTAGT"), id="seq2"),
+        SeqRecord(Seq("ADCCTGT"), id="seq2"),
+    ]
     warnings = find_warnings(input_data)
     assert len(warnings) == 1
     assert warnings[0] == "seq2: duplicate ID"
 
 
 def test_guess_molecule_type_dna():
-    test_result = guess_molecule_type(Seq('AGCTAGT'))
+    test_result = guess_molecule_type(Seq("AGCTAGT"))
     assert test_result == "DNA"
-    test_result = guess_molecule_type(Seq('AGCAU'))
+    test_result = guess_molecule_type(Seq("AGCAU"))
     assert test_result == "RNA"
-    test_result = guess_molecule_type(Seq('AGCAUGW'))
+    test_result = guess_molecule_type(Seq("AGCAUGW"))
     assert test_result == "protein"
 
+
 def test_type_finding():
-    test_data = [SeqRecord(Seq('ADGCUAGU'),
-                          id="seq1",
-                          annotations={
-                              "molecule_type": "DNA"
-                          })]
+    test_data = [SeqRecord(Seq("ADGCUAGU"), id="seq1", annotations={"molecule_type": "DNA"})]
     test_result = process_records(test_data, "raw")
     # Dispite Uracil, distinct as DNA from metadata
-    assert test_result['records'][0]['type'] == 'DNA'
+    assert test_result["records"][0]["type"] == "DNA"
+
 
 def test_annotations():
-    test_data = [SeqRecord(Seq('ADGCUAGU'),
-                          id="seq1",
-                          annotations={
-                              "molecule_type": "DNA",
-                              "organism": "test_subject_1",
-                              "topology": "test_topology_1"
-                          })]
+    test_data = [
+        SeqRecord(
+            Seq("ADGCUAGU"),
+            id="seq1",
+            annotations={
+                "molecule_type": "DNA",
+                "organism": "test_subject_1",
+                "topology": "test_topology_1",
+            },
+        )
+    ]
     test_result = process_records(test_data, "raw")
-    assert test_result['records'][0]['type'] == 'DNA'
-    assert test_result['records'][0]['organism'] == 'test_subject_1'
-    assert test_result['records'][0]['topology'] == 'test_topology_1'
-    
-    
+    assert test_result["records"][0]["type"] == "DNA"
+    assert test_result["records"][0]["organism"] == "test_subject_1"
+    assert test_result["records"][0]["topology"] == "test_topology_1"

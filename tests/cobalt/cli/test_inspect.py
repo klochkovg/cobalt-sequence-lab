@@ -12,6 +12,7 @@ def test_inspect_requires_input_arg(capsys):
         main([])
     assert "usage:" in capsys.readouterr().err
 
+
 def test_file_not_found(capsys):
     exit_code = main(["inspect", "--overview-only", str(DATA_DIR / "ls_orchid_non_existing.fasta")])
 

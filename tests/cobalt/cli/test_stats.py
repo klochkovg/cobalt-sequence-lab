@@ -1,4 +1,3 @@
-
 import json
 
 from cobalt.cli.main import main
@@ -12,7 +11,7 @@ def test_stats_cmd_input(capsys):
 
     records = json.loads(captured.out)
     record = records[0]
-    assert record['id'] == 'direct_input'
-    assert record['length'] == 36
-    assert record['type'] == 'DNA'
-    assert record['source_format'] == "raw"
+    assert record["id"] == "direct_input"
+    assert record["length"] == 36
+    assert record["type"] == "DNA"
+    assert record["source_format"] == "raw"

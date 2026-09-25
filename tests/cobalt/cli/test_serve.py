@@ -8,8 +8,8 @@ def test_root():
     client = TestClient(build_app())
     resp = client.get("/")
     assert resp.status_code == 200
-    assert resp.json() == {"title": "Cobalt Sequence Lab",
-                           "version": __version__}
+    assert resp.json() == {"title": "Cobalt Sequence Lab", "version": __version__}
+
 
 def test_stats():
     client = TestClient(build_app())
