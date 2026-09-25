@@ -16,7 +16,7 @@ dev = [
     "cobalt-sequence-lab[serve]",
     "pytest",
     "pytest-cov",
-    "httpx",  # required by fastapi.testclient
+    "httpx2",  # required by fastapi.testclient
     "ruff",
     "mypy",
 ]

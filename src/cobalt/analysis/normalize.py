@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from Bio.Seq import Seq
+from typing import Any
 
 
-def uppercase_result(records: Seq) -> int:
+def uppercase_result(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """uppercase the sequence, naive approach for now
     No data copying, actual replacement
     """

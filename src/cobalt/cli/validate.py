@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
-from cobalt.cli.stats import read_file, write_stats_csv
+from cobalt.cli.stats import SortingOrder, read_file, write_stats_csv
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,7 +37,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.report:
         try:
             with open(args.report, "w", newline="") as f:
-                write_stats_csv(f, primary_result["records"])
+                write_stats_csv(f, primary_result["records"], SortingOrder.ID)
                 # TODO temporary for infrastructure testing
                 # later replace with correct call
         except IsADirectoryError:
@@ -53,7 +53,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: could not write to {args.report}: {exc}")
             return 1
     else:
-        write_stats_csv(sys.stdout, primary_result["records"])
+        write_stats_csv(sys.stdout, primary_result["records"], SortingOrder.ID)
         # TODO the same as above
     return 0
 

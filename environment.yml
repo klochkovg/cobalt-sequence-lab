@@ -12,6 +12,7 @@ dependencies:
   - pydantic
   - fastapi
   - uvicorn-standard
+  - httpx2
   - pytest
   - pytest-cov
   - ruff
