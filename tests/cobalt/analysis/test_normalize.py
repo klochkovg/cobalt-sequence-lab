@@ -1,6 +1,7 @@
 """ Tests for normalize helpers """
 from cobalt.analysis.normalize import uppercase_result
 
+
 def test_uppercase():
     test_data = [{
             "sequence": 'AdGcUAgU'

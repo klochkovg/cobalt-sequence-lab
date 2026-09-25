@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from cobalt.analysis.inspect import find_warnings, guess_molecule_type
-from cobalt.analysis.processor import read_file, process_records
-
-from Bio.SeqRecord import SeqRecord;
 from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+
+from cobalt.analysis.inspect import find_warnings, guess_molecule_type
+from cobalt.analysis.processor import process_records, read_file
 
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
 

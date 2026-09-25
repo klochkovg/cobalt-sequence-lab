@@ -1,8 +1,8 @@
-from pathlib import Path
 
-import pytest
-from cobalt.cli.main import main
 import json
+
+from cobalt.cli.main import main
+
 
 def test_stats_cmd_input(capsys):
     exit_code = main(["stats", "--input", "CATTGTTGAGATCACATAATAATTGATCGAGTTAAT", "--json"])

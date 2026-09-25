@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from cobalt import __version__
 from cobalt.cli.serve import build_app
 
+
 def test_root():
     client = TestClient(build_app())
     resp = client.get("/")

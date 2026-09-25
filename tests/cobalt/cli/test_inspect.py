@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+
 from cobalt.cli.main import main
 
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
