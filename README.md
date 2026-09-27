@@ -96,6 +96,8 @@ cobalt stats input.fasta --out stats.csv
 cobalt normalize input.gb --fasta cleaned.fasta
 cobalt validate input.fasta --report qc.json
 cobalt serve
+cobalt serve --cors                         # allow any origin (UI development)
+cobalt serve --cors http://localhost:5173   # allow specific origin(s)
 ```
 
 # some use (I'm not a seasoned Python programmer, so some strange things are possible)

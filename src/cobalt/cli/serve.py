@@ -9,6 +9,7 @@ import uvicorn
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from cobalt import __version__
@@ -36,12 +37,29 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cobalt serve")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
+    parser.add_argument(
+        "--cors",
+        nargs="*",
+        metavar="ORIGIN",
+        help="Enable CORS (for UI development). Without origins, any origin is allowed",
+    )
     return parser
 
 
-def build_app() -> FastAPI:
-    """Build the FastAPI application."""
+def build_app(cors_origins: Sequence[str] | None = None) -> FastAPI:
+    """Build the FastAPI application.
+
+    CORS is disabled when `cors_origins` is None; an empty sequence allows any origin.
+    """
     app = FastAPI()
+
+    if cors_origins is not None:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=list(cors_origins) or ["*"],
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     @app.get("/")
     async def root():
@@ -82,7 +100,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the serve command."""
     args = build_parser().parse_args(argv)
 
-    app = build_app()
+    app = build_app(cors_origins=args.cors)
     uvicorn.run(app, host=args.host, port=args.port)
 
     return 0
