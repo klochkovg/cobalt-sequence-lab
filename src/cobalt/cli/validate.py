@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
+from cobalt.analysis.validation import print_warnings
 from cobalt.cli.stats import SortingOrder, read_file, write_stats_csv
 
 
@@ -16,6 +17,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cobalt validate")
     parser.add_argument("input", help="Input FASTA/GenBank file")
     parser.add_argument("--report", required=False, help="JSON report output path")
+    parser.add_argument(
+        "--warnings",
+        action="store_true",
+        help="Print only warnings (empty sequences, duplicate IDs, invalid characters) to stdout",
+    )
     return parser
 
 
@@ -33,6 +39,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         primary_result = read_file(data_file_path, "genbank")
     if not primary_result:
         print(f"{data_file_path}: 0 records")
+        return 0
+    if args.warnings:
+        print_warnings(primary_result["warnings"])
         return 0
     if args.report:
         try:
