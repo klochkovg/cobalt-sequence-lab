@@ -76,7 +76,7 @@ conda create -n biolab-dev -c conda-forge \
    - consistent description handling
    - filtered output formats
 5. Record report
-   - sequene preview
+   - sequence preview
    - metadata
    - annotations
    - features summary
@@ -118,3 +118,12 @@ pip install -e .
 - lack of tests
 - lack of precommit hooks for linter and tests
 - lack of API implementation, though some infrastructure is already created
+
+# Some future plans
+
+- Definition of Done fulfilled
+- Use of main common data sources
+- Rework of data model, extensive use of dicitonaries is ugly
+- Introduction of some forms of job/task model
+- Introduction of some kind of pipelining model to run batches of data
+- Integration with Nextflow
