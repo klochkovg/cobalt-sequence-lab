@@ -25,6 +25,7 @@ class SequenceRecord:
     topology: str | None = None
     quality: str | None = None
 
+
 @dataclass(slots=True)
 class AnalysisResult:
     """Simple result of multisequence file analysis"""
