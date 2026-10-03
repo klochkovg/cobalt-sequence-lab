@@ -37,6 +37,7 @@ class AnalysisResult:
     mean: float
     type: str
 
+
 def validate_record(record: SequenceRecord) -> list[str]:
     """Validate record fields and return a list of issues.
 
