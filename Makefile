@@ -1,15 +1,24 @@
 
+.PHONY: lint format-check check fix mypy test ci
+
+
 # ruff call, if it is installed (environment.yml has it)
 lint: 
-	ruff check src
-	ruff check tests
+	ruff check src tests
 
-lint_fix: 
-	ruff format src
-	ruff format tests
+format-check:
+	ruff format --check src tests	
 
 mypy:
 	mypy src
 
 test:
-	pytest
+	pytest --cov=cobalt
+
+check: lint format-check
+
+ci: check mypy test
+
+format_fix: 
+	ruff check --fix src tests
+	ruff format src tests
