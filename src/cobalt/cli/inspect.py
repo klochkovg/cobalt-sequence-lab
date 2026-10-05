@@ -8,28 +8,29 @@ from pathlib import Path
 
 from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
 from cobalt.analysis.processor import read_file
+from cobalt.model.record import AnalysisResult, SequenceRecord
 
 
-def print_file_results(path: Path, result: dict) -> None:
-    print(f"{path}: {result['records_num']} record(s)")
-    print(f" length: min={result['min']}  max={result['max']}  mean={result['mean']:.1f}")
-    print(f"Number of warnings {len(result['warnings'])}")
-    if len(result["warnings"]) > 0:
-        for warning in result["warnings"]:
+def print_file_results(path: Path, result: AnalysisResult) -> None:
+    print(f"{path}: {result.records_num} record(s)")
+    print(f" length: min={result.min}  max={result.max}  mean={result.mean:.1f}")
+    print(f"Number of warnings {len(result.warnings)}")
+    if len(result.warnings) > 0:
+        for warning in result.warnings:
             print(f"     {warning}")
 
 
-def print_record(record: dict) -> None:
-    print(f"Sequence name   : {record['id']}")
-    print(f"Sequence length : {record['length']}")
-    print(f"Sequence        : {record['sequence']!s}")
-    print(f"GC fraction     : {record['gc_fraction']!r}")
-    print(f"Type guess      : {record['type']}")
-    if record["type"]:
-        print(f"Type            : {record['molecule_type']}")
-    print(f"Description     : {record['description']}")
-    if record["organism"]:
-        print(f"Organism        : {record['organism']}")
+def print_record(record: SequenceRecord) -> None:
+    print(f"Sequence name   : {record.id}")
+    print(f"Sequence length : {record.length}")
+    print(f"Sequence        : {record.sequence}")
+    print(f"GC fraction     : {record.gc_fraction!r}")
+    print(f"Type guess      : {record.type}")
+    if record.type:
+        print(f"Type            : {record.molecule_type}")
+    print(f"Description     : {record.description}")
+    if record.organism:
+        print(f"Organism        : {record.organism}")
     print()
 
 
@@ -59,7 +60,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not check_file(path):
         return 1
 
-    primary_result = {}
+    primary_result = None
     if path.suffix.lower() in FASTA_SUFFIXES:
         primary_result = read_file(path, "fasta")
     if path.suffix.lower() in GENBANK_SUFFIXES:
@@ -73,7 +74,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print("--------------------------------------------------------------------------------------")
     number_of_sequences = args.output_seq_number
     counter = 0
-    for record in primary_result["records"]:
+    for record in primary_result.records:
         counter = counter + 1
         if counter > number_of_sequences and number_of_sequences != -1:
             break

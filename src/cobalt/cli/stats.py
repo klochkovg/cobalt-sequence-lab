@@ -21,6 +21,7 @@ from cobalt.analysis.inspect import (
     check_file,
 )
 from cobalt.analysis.processor import process_records, read_file
+from cobalt.model.record import SequenceRecord
 
 
 class SortingOrder(Enum):
@@ -47,21 +48,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def write_stats_csv(file: TextIO, records: dict, order: SortingOrder) -> None:
+def write_stats_csv(file: TextIO, records: list[SequenceRecord], order: SortingOrder) -> None:
     writer = csv.DictWriter(file, fieldnames=STATS_FIELDNAMES, extrasaction="ignore")
     writer.writeheader()
     for record in records:
-        writer.writerow(record)
+        writer.writerow(record.to_dict())
 
 
-def write_stats_json(file: TextIO, records: dict, order: SortingOrder) -> None:
-    sorted(records, key=lambda k: k[order.value])
-    filtered_records = [{name: record[name] for name in STATS_FIELDNAMES} for record in records]
+def write_stats_json(file: TextIO, records: list[SequenceRecord], order: SortingOrder) -> None:
+    sorted(records, key=lambda k: getattr(k, order.value))
+    filtered_records = []
+    for record in records:
+        row = record.to_dict()
+        filtered_records.append({name: row[name] for name in STATS_FIELDNAMES})
     json.dump(filtered_records, file, indent=2)
 
 
 def write_stats(
-    type: str, file: TextIO, records: dict, order: SortingOrder = SortingOrder.ID
+    type: str, file: TextIO, records: list[SequenceRecord], order: SortingOrder = SortingOrder.ID
 ) -> None:
     if type == "csv":
         write_stats_csv(file, records, order)
@@ -82,7 +86,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         data_file_path = Path(args.input)
         if not check_file(data_file_path):
             return 1
-        primary_result = {}
+        primary_result = None
         if data_file_path.suffix.lower() in FASTA_SUFFIXES:
             primary_result = read_file(data_file_path, "fasta")
         if data_file_path.suffix.lower() in GENBANK_SUFFIXES:
@@ -96,7 +100,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.out:
         try:
             with open(args.out, "w", newline="") as f:
-                write_stats(output_type, f, primary_result["records"])
+                write_stats(output_type, f, primary_result.records)
         except IsADirectoryError:
             print(f"error: --out is a directory: {args.out}")
             return 1
@@ -110,7 +114,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: could not write to {args.out}: {exc}")
             return 1
     else:
-        write_stats(output_type, sys.stdout, primary_result["records"])
+        write_stats(output_type, sys.stdout, primary_result.records)
     return 0
 
 

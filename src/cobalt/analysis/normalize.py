@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
+from cobalt.model.record import SequenceRecord
 
 
-def uppercase_result(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def uppercase_result(records: list[SequenceRecord]) -> list[SequenceRecord]:
     """uppercase the sequence, naive approach for now
     No data copying, actual replacement
     """
     for record in records:
-        sequence = record["sequence"]
-        record["sequence"] = sequence.upper()
+        record.sequence = record.sequence.upper()
     return records

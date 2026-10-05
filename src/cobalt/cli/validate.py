@@ -32,7 +32,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if not check_file(data_file_path):
         return 1
-    primary_result = {}
+    primary_result = None
     if data_file_path.suffix.lower() in FASTA_SUFFIXES:
         primary_result = read_file(data_file_path, "fasta")
     if data_file_path.suffix.lower() in GENBANK_SUFFIXES:
@@ -41,12 +41,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"{data_file_path}: 0 records")
         return 0
     if args.warnings:
-        print_warnings(primary_result["warnings"])
+        print_warnings(primary_result.warnings)
         return 0
     if args.report:
         try:
             with open(args.report, "w", newline="") as f:
-                write_stats_csv(f, primary_result["records"], SortingOrder.ID)
+                write_stats_csv(f, primary_result.records, SortingOrder.ID)
                 # TODO temporary for infrastructure testing
                 # later replace with correct call
         except IsADirectoryError:
@@ -62,7 +62,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: could not write to {args.report}: {exc}")
             return 1
     else:
-        write_stats_csv(sys.stdout, primary_result["records"], SortingOrder.ID)
+        write_stats_csv(sys.stdout, primary_result.records, SortingOrder.ID)
         # TODO the same as above
     return 0
 

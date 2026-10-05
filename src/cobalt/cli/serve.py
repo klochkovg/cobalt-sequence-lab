@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+from typing import Any
 
 import uvicorn
 from Bio.Seq import Seq
@@ -15,6 +16,7 @@ from pydantic import BaseModel
 from cobalt import __version__
 from cobalt.analysis.inspect import STATS_FIELDNAMES
 from cobalt.analysis.processor import process_records
+from cobalt.model.record import SequenceRecord
 
 
 class SequenceRequest(BaseModel):
@@ -30,6 +32,12 @@ class StatsRecord(BaseModel):
     length: int
     gc_fraction: float
     type: str
+
+
+def stats_row(record: SequenceRecord) -> dict[str, Any]:
+    """Convert a record to a dict limited to the stats fields."""
+    row = record.to_dict()
+    return {name: row[name] for name in STATS_FIELDNAMES}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -69,29 +77,29 @@ def build_app(cors_origins: Sequence[str] | None = None) -> FastAPI:
     async def stats(body: SequenceRequest):
         seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
         primary_result = process_records([seq_record], "raw")
-        records = primary_result["records"] if primary_result else []
-        return [{name: rec[name] for name in STATS_FIELDNAMES} for rec in records]
+        records = primary_result.records if primary_result else []
+        return [stats_row(rec) for rec in records]
 
     @app.post("/inspect", response_model=list[StatsRecord])
     async def inspect(body: SequenceRequest):
         seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
         primary_result = process_records([seq_record], "raw")
-        records = primary_result["records"] if primary_result else []
-        return [{name: rec[name] for name in STATS_FIELDNAMES} for rec in records]
+        records = primary_result.records if primary_result else []
+        return [stats_row(rec) for rec in records]
 
     @app.post("/validate", response_model=list[StatsRecord])
     async def validate(body: SequenceRequest):
         seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
         primary_result = process_records([seq_record], "raw")
-        records = primary_result["records"] if primary_result else []
-        return [{name: rec[name] for name in STATS_FIELDNAMES} for rec in records]
+        records = primary_result.records if primary_result else []
+        return [stats_row(rec) for rec in records]
 
     @app.post("/normalize", response_model=list[StatsRecord])
     async def normalize(body: SequenceRequest):
         seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
         primary_result = process_records([seq_record], "raw")
-        records = primary_result["records"] if primary_result else []
-        return [{name: rec[name] for name in STATS_FIELDNAMES} for rec in records]
+        records = primary_result.records if primary_result else []
+        return [stats_row(rec) for rec in records]
 
     return app
 

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from Bio import SeqIO, SeqUtils
 from Bio.Data import IUPACData
 from Bio.SeqRecord import SeqRecord
+
+from cobalt.model.record import AnalysisResult, SequenceRecord
 
 DNA_LETTERS = set("ACGTN")
 RNA_LETTERS = set("ACGUN")
@@ -83,17 +84,17 @@ VALID_RNA = set(IUPACData.ambiguous_rna_letters)
 VALID_PROTEIN = set(IUPACData.extended_protein_letters)
 
 
-def invalid_char_count(seq_record: SeqRecord, type: str) -> str:
+def invalid_char_count(seq_record: SeqRecord, type: str) -> int:
     """Calculate and return number of invalid symbols for the particular sequence"""
     if seq_record.seq is None:
-        return "0"
+        return 0
     seq_str = str(seq_record.seq).upper()
     valid_letters = {
         "DNA": VALID_DNA,
         "RNA": VALID_RNA,
         "protein": VALID_PROTEIN,
     }.get(type, set())
-    return str(sum(1 for c in seq_str if c not in valid_letters))
+    return sum(1 for c in seq_str if c not in valid_letters)
 
 
 AMBIGUOUS_DNA = set(IUPACData.ambiguous_dna_letters) - set(IUPACData.unambiguous_dna_letters)
@@ -149,7 +150,7 @@ def calculate_ambiguity_fraction(seq, molecule_type):
     return ambiguous_count / len(seq_str)
 
 
-def read_file(path, type) -> dict[str, Any]:
+def read_file(path, type) -> AnalysisResult | None:
     """Provide some general information about records.
     What should be implemented:
     - number of records
@@ -163,20 +164,17 @@ def read_file(path, type) -> dict[str, Any]:
     return process_records(records, type)
 
 
-def process_records(records: list[SeqRecord], type: str) -> dict[str, Any]:
+def annotation_str(seq_record: SeqRecord, key: str) -> str | None:
+    """Return a record annotation as a string, or None if it is missing."""
+    value = seq_record.annotations.get(key)
+    return None if value is None else str(value)
+
+
+def process_records(records: list[SeqRecord], type: str) -> AnalysisResult | None:
     lengths = [len(record.seq) if record.seq is not None else 0 for record in records]
     if not lengths:
         print("0 records")
-        return {}
-
-    primary_result = {
-        "warnings": find_warnings(records),
-        "records_num": len(lengths),
-        "min": min(lengths),
-        "max": max(lengths),
-        "mean": sum(lengths) / len(lengths),
-        "type": type,
-    }
+        return None
 
     result_array = []
     for seq_record in records:
@@ -185,22 +183,30 @@ def process_records(records: list[SeqRecord], type: str) -> dict[str, Any]:
             if seq_record.annotations.get("molecule_type")
             else guess_molecule_type(seq_record.seq)
         )
-        result = {
-            "id": seq_record.id,
-            "description": seq_record.description,
-            "length": len(seq_record),
-            "sequence": seq_record.seq,
-            "gc_fraction": calculate_gc_fraction(seq_record.seq),
-            "ambiguity_fraction": calculate_ambiguity_fraction(seq_record.seq, seq_type),
-            "invalid_char_count": invalid_char_count(seq_record, seq_type),
-            "alphabetic_class": calculate_alphabet_class(seq_record, seq_type),
-            "source_format": type,
-            "type": seq_type,
-            "organism": seq_record.annotations.get("organism"),
-            "molecule_type": seq_record.annotations.get("molecule_type"),
-            "topology": seq_record.annotations.get("topology"),
-            "feature_count": len(seq_record.features),
-        }
+        result = SequenceRecord(
+            id=str(seq_record.id),
+            description=seq_record.description,
+            length=len(seq_record),
+            sequence=str(seq_record.seq),
+            gc_fraction=calculate_gc_fraction(seq_record.seq),
+            ambiguity_fraction=calculate_ambiguity_fraction(seq_record.seq, seq_type),
+            invalid_char_count=invalid_char_count(seq_record, seq_type),
+            alphabetic_class=calculate_alphabet_class(seq_record, seq_type),
+            source_format=type,
+            type=seq_type,
+            organism=annotation_str(seq_record, "organism"),
+            molecule_type=annotation_str(seq_record, "molecule_type"),
+            topology=annotation_str(seq_record, "topology"),
+            feature_count=len(seq_record.features),
+        )
         result_array.append(result)
-    primary_result["records"] = result_array
-    return primary_result
+
+    return AnalysisResult(
+        warnings=find_warnings(records),
+        records_num=len(lengths),
+        min=min(lengths),
+        max=max(lengths),
+        mean=sum(lengths) / len(lengths),
+        type=type,
+        records=result_array,
+    )

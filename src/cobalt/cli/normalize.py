@@ -33,7 +33,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     data_file_path = Path(args.input)
     if not check_file(data_file_path):
         return 1
-    primary_result = {}
+    primary_result = None
     if data_file_path.suffix.lower() in FASTA_SUFFIXES:
         primary_result = read_file(data_file_path, "fasta")
     if data_file_path.suffix.lower() in GENBANK_SUFFIXES:
@@ -43,9 +43,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"{data_file_path}: 0 records")
         return 0
 
-    records = uppercase_result(primary_result["records"])
+    records = uppercase_result(primary_result.records)
     seq_records = [
-        SeqRecord(Seq(str(record["sequence"])), id=record["id"], description=record["description"])
+        SeqRecord(Seq(record.sequence), id=record.id, description=record.description)
         for record in records
     ]
     try:

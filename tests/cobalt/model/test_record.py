@@ -166,10 +166,15 @@ def test_analysis_result_round_trip():
 def test_analysis_result_from_process_records(filename, fmt):
     seq_records = list(SeqIO.parse(TEST_DATA / filename, fmt))
 
-    result = AnalysisResult.from_dict(process_records(seq_records, fmt))
+    result = process_records(seq_records, fmt)
 
+    assert isinstance(result, AnalysisResult)
     assert result.records_num == len(seq_records)
     assert [r.id for r in result.records] == [r.id for r in seq_records]
     assert [r.sequence for r in result.records] == [str(r.seq) for r in seq_records]
     assert all(type(r.invalid_char_count) is int for r in result.records)
     assert AnalysisResult.from_dict(result.to_dict()) == result
+
+
+def test_process_records_empty_returns_none():
+    assert process_records([], "fasta") is None
