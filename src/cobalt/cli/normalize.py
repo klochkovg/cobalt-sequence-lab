@@ -19,16 +19,35 @@ def build_parser() -> argparse.ArgumentParser:
     """Build parser for normalize command."""
     parser = argparse.ArgumentParser(prog="cobalt normalize")
     parser.add_argument("input", help="Input FASTA/GenBank file")
-    parser.add_argument("--fasta", required=True, help="Output cleaned FASTA path")
+    parser.add_argument("--fasta", help="Output cleaned FASTA path")
+    parser.add_argument("--genbank", help="Output cleaned GenBank path")
     return parser
+
+
+def write_records(path: str, seq_records: list[SeqRecord], fmt: str) -> bool:
+    """Write records to `path` in the given Biopython format, report errors."""
+    try:
+        with open(path, "w") as f:
+            SeqIO.write(seq_records, f, fmt)
+    except OSError as exc:
+        print(f"error: could not write to {path}: {exc}")
+        return False
+    except ValueError as exc:
+        print(f"error: could not write {fmt} to {path}: {exc}")
+        return False
+    return True
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the normalize command.
 
-    Reads the input file, uppercases every sequence and writes the result as FASTA.
+    Reads the input file, uppercases every sequence and writes the result
+    as FASTA and/or GenBank.
     """
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if not args.fasta and not args.genbank:
+        parser.error("at least one of --fasta or --genbank is required")
 
     data_file_path = Path(args.input)
     if not check_file(data_file_path):
@@ -45,14 +64,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     records = uppercase_result(primary_result.records)
     seq_records = [
-        SeqRecord(Seq(record.sequence), id=record.id, description=record.description)
+        SeqRecord(
+            Seq(record.sequence),
+            id=record.id,
+            description=record.description,
+            # GenBank output requires molecule_type; FASTA ignores it
+            annotations={"molecule_type": record.molecule_type or record.type},
+        )
         for record in records
     ]
-    try:
-        with open(args.fasta, "w") as f:
-            SeqIO.write(seq_records, f, "fasta")
-    except OSError as exc:
-        print(f"error: could not write to {args.fasta}: {exc}")
+    if args.fasta and not write_records(args.fasta, seq_records, "fasta"):
+        return 1
+    if args.genbank and not write_records(args.genbank, seq_records, "genbank"):
         return 1
     return 0
 

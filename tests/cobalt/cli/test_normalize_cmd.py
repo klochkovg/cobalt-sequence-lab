@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from Bio import SeqIO
 
 from cobalt.cli.main import main
@@ -38,3 +39,66 @@ def test_normalize_missing_file(tmp_path, capsys):
 
     assert exit_code == 1
     assert "file not found" in capsys.readouterr().out
+
+
+def test_normalize_genbank_output(tmp_path):
+    output_path = tmp_path / "out.gbk"
+
+    exit_code = main(["normalize", str(TEST_DATA / "ls_orchid.gbk"), "--genbank", str(output_path)])
+
+    assert exit_code == 0
+    source = list(SeqIO.parse(TEST_DATA / "ls_orchid.gbk", "genbank"))
+    records = list(SeqIO.parse(output_path, "genbank"))
+    assert [record.id for record in records] == [record.id for record in source]
+    assert [str(record.seq) for record in records] == [str(r.seq).upper() for r in source]
+    assert all(record.annotations["molecule_type"] == "DNA" for record in records)
+
+
+def test_normalize_fasta_to_genbank_uses_guessed_type(tmp_path):
+    input_path = tmp_path / "input.fasta"
+    input_path.write_text(">seq1 first\nacgTNa\n>seq2 second\nacgu\n")
+    output_path = tmp_path / "out.gbk"
+
+    exit_code = main(["normalize", str(input_path), "--genbank", str(output_path)])
+
+    assert exit_code == 0
+    records = list(SeqIO.parse(output_path, "genbank"))
+    assert [str(record.seq) for record in records] == ["ACGTNA", "ACGU"]
+    assert [record.annotations["molecule_type"] for record in records] == ["DNA", "RNA"]
+
+
+def test_normalize_fasta_and_genbank_together(tmp_path):
+    fasta_path = tmp_path / "out.fasta"
+    genbank_path = tmp_path / "out.gbk"
+
+    exit_code = main(
+        [
+            "normalize",
+            str(TEST_DATA / "ls_orchid.fasta"),
+            "--fasta",
+            str(fasta_path),
+            "--genbank",
+            str(genbank_path),
+        ]
+    )
+
+    assert exit_code == 0
+    fasta_ids = [record.id for record in SeqIO.parse(fasta_path, "fasta")]
+    genbank_seqs = [str(record.seq) for record in SeqIO.parse(genbank_path, "genbank")]
+    assert len(fasta_ids) == len(genbank_seqs) > 0
+
+
+def test_normalize_genbank_unknown_molecule_type(tmp_path, capsys):
+    input_path = tmp_path / "input.fasta"
+    input_path.write_text(">seq1\nACGT123\n")
+
+    exit_code = main(["normalize", str(input_path), "--genbank", str(tmp_path / "out.gbk")])
+
+    assert exit_code == 1
+    assert "could not write genbank" in capsys.readouterr().out
+
+
+def test_normalize_requires_output(capsys):
+    with pytest.raises(SystemExit):
+        main(["normalize", str(TEST_DATA / "ls_orchid.fasta")])
+    assert "at least one of --fasta or --genbank" in capsys.readouterr().err
