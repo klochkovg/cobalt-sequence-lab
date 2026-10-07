@@ -12,7 +12,7 @@ RNA_LETTERS = set("ACGUN")
 PROTEIN_LETTERS = set(IUPACData.extended_protein_letters)
 
 FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
-GENBANK_SUFFIXES = {".gbk", ".gk", ".gp", "gpt"}
+GENBANK_SUFFIXES = {".gb", ".gbk", ".genbank", ".gp", ".gpt"}
 
 STATS_FIELDNAMES = [
     "id",

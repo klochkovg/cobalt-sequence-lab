@@ -79,7 +79,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """
     args = build_parser().parse_args(argv)
 
-    if args.raw_sequence:
+    if args.raw_sequence is not None:
         record = SeqRecord(Seq(args.raw_sequence), id="direct_input")
         primary_result = process_records([record], "raw")
     else:
@@ -93,7 +93,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             primary_result = read_file(data_file_path, "genbank")
 
     if not primary_result:
-        print(f"{data_file_path}: 0 records")
+        source = "direct input" if args.raw_sequence is not None else args.input
+        print(f"{source}: 0 records")
         return 0
 
     output_type = "json" if args.json else "csv"

@@ -27,3 +27,14 @@ def test_number_of_records(capsys):
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "94 record(s)" in captured.out
+
+
+def test_genbank_gb_suffix(capsys, tmp_path):
+    gb_file = tmp_path / "ls_orchid.gb"
+    gb_file.write_text((DATA_DIR / "ls_orchid.gbk").read_text())
+
+    exit_code = main(["inspect", "--overview-only", str(gb_file)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "94 record(s)" in captured.out
