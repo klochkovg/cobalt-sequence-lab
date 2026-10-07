@@ -109,7 +109,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     app = build_app(cors_origins=args.cors)
-    uvicorn.run(app, host=args.host, port=args.port)
+    # log_config=None: uvicorn's loggers propagate to the handler set up by
+    # cobalt.logging_config instead of installing uvicorn's own
+    uvicorn.run(app, host=args.host, port=args.port, log_config=None)
 
     return 0
 

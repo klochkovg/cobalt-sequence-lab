@@ -38,7 +38,7 @@ def test_normalize_missing_file(tmp_path, capsys):
     )
 
     assert exit_code == 1
-    assert "file not found" in capsys.readouterr().out
+    assert "file not found" in capsys.readouterr().err
 
 
 def test_normalize_genbank_output(tmp_path):
@@ -95,7 +95,7 @@ def test_normalize_genbank_unknown_molecule_type(tmp_path, capsys):
     exit_code = main(["normalize", str(input_path), "--genbank", str(tmp_path / "out.gbk")])
 
     assert exit_code == 1
-    assert "could not write genbank" in capsys.readouterr().out
+    assert "could not write genbank" in capsys.readouterr().err
 
 
 def test_normalize_requires_output(capsys):

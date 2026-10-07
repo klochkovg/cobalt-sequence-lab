@@ -25,21 +25,23 @@ def test_validate_warnings_mode(capsys):
     assert "id,length" not in out
 
 
-def test_validate_warnings_file_not_found(capsys):
+def test_validate_warnings_file_not_found(capsys, caplog):
     exit_code, out = run_warnings(capsys, DATA_DIR / "ls_orchid_non_existing.fasta")
 
     assert exit_code == 1
-    assert "error: file not found" in out
+    assert "file not found" in caplog.text
+    assert out == ""
 
 
-def test_validate_warnings_unsupported_extension(capsys, tmp_path):
+def test_validate_warnings_unsupported_extension(capsys, caplog, tmp_path):
     path = tmp_path / "input.txt"
     path.write_text(">seq1\nACGT\n")
 
     exit_code, out = run_warnings(capsys, path)
 
     assert exit_code == 1
-    assert "error: unsupported extension" in out
+    assert "unsupported extension" in caplog.text
+    assert out == ""
 
 
 def test_validate_warnings_clean_file(capsys, tmp_path):
@@ -106,14 +108,14 @@ def test_validate_warnings_fasta_suffixes(capsys, tmp_path, suffix):
     assert "warning: seq1: duplicate ID" in out
 
 
-def test_validate_warnings_empty_file(capsys, tmp_path):
+def test_validate_warnings_empty_file(capsys, caplog, tmp_path):
     path = tmp_path / "nothing.fasta"
     path.write_text("")
 
     exit_code, out = run_warnings(capsys, path)
 
     assert exit_code == 0
-    assert "0 records" in out
+    assert "0 records" in caplog.text
     assert "warning(s) found" not in out
 
 

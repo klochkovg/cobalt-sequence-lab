@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -10,6 +11,8 @@ from pathlib import Path
 from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
 from cobalt.analysis.validation import print_warnings
 from cobalt.cli.stats import SortingOrder, read_file, write_stats_csv
+
+log = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,7 +41,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if data_file_path.suffix.lower() in GENBANK_SUFFIXES:
         primary_result = read_file(data_file_path, "genbank")
     if not primary_result:
-        print(f"{data_file_path}: 0 records")
+        log.warning("%s: 0 records", data_file_path)
         return 0
     if args.warnings:
         print_warnings(primary_result.warnings)
@@ -50,16 +53,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 # TODO temporary for infrastructure testing
                 # later replace with correct call
         except IsADirectoryError:
-            print(f"error: --out is a directory: {args.report}")
+            log.error("--report is a directory: %s", args.report)
             return 1
         except FileNotFoundError:
-            print(f"error: no such directory for --out: {args.report}")
+            log.error("no such directory for --report: %s", args.report)
             return 1
         except PermissionError:
-            print(f"error: permission denied writing to: {args.report}")
+            log.error("permission denied writing to: %s", args.report)
             return 1
         except OSError as exc:
-            print(f"error: could not write to {args.report}: {exc}")
+            log.error("could not write to %s: %s", args.report, exc)
             return 1
     else:
         write_stats_csv(sys.stdout, primary_result.records, SortingOrder.ID)

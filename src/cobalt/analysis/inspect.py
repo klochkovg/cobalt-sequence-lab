@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from Bio.Data import IUPACData
 from Bio.SeqRecord import SeqRecord
+
+log = logging.getLogger(__name__)
 
 DNA_LETTERS = set("ACGTN")
 RNA_LETTERS = set("ACGUN")
@@ -61,11 +64,13 @@ def guess_molecule_type(seq):
 def check_file(path: Path) -> bool:
     """ "Checking the file is correct and exists"""
     if not path.is_file():
-        print(f"error: file not found: {path}")
+        log.error("file not found: %s", path)
         return False
     if path.suffix.lower() not in (FASTA_SUFFIXES | GENBANK_SUFFIXES):
-        print(
-            f"error: unsupported extension {path.suffix!r}, expected ({', '.join(sorted(FASTA_SUFFIXES | GENBANK_SUFFIXES))})"
+        log.error(
+            "unsupported extension %r, expected (%s)",
+            path.suffix,
+            ", ".join(sorted(FASTA_SUFFIXES | GENBANK_SUFFIXES)),
         )
         return False
     return True

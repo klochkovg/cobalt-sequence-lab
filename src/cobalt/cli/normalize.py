@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -13,6 +14,8 @@ from Bio.SeqRecord import SeqRecord
 from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
 from cobalt.analysis.normalize import uppercase_result
 from cobalt.analysis.processor import read_file
+
+log = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,10 +33,10 @@ def write_records(path: str, seq_records: list[SeqRecord], fmt: str) -> bool:
         with open(path, "w") as f:
             SeqIO.write(seq_records, f, fmt)
     except OSError as exc:
-        print(f"error: could not write to {path}: {exc}")
+        log.error("could not write to %s: %s", path, exc)
         return False
     except ValueError as exc:
-        print(f"error: could not write {fmt} to {path}: {exc}")
+        log.error("could not write %s to %s: %s", fmt, path, exc)
         return False
     return True
 
@@ -59,7 +62,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         primary_result = read_file(data_file_path, "genbank")
 
     if not primary_result:
-        print(f"{data_file_path}: 0 records")
+        log.warning("%s: 0 records", data_file_path)
         return 0
 
     records = uppercase_result(primary_result.records)

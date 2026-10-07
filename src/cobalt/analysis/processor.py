@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+
 from Bio import SeqIO, SeqUtils
 from Bio.Data import IUPACData
 from Bio.SeqRecord import SeqRecord
 
 from cobalt.analysis.inspect import find_warnings, guess_molecule_type
 from cobalt.model.record import AnalysisResult, SequenceRecord
+
+log = logging.getLogger(__name__)
 
 
 def calculate_gc_fraction(seq):
@@ -109,7 +113,7 @@ def annotation_str(seq_record: SeqRecord, key: str) -> str | None:
 def process_records(records: list[SeqRecord], type: str) -> AnalysisResult | None:
     lengths = [len(record.seq) if record.seq is not None else 0 for record in records]
     if not lengths:
-        print("0 records")
+        log.debug("no records to process")
         return None
 
     result_array = []

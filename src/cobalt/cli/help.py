@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import importlib
-import sys
+import logging
 from collections.abc import Sequence
+
+log = logging.getLogger(__name__)
 
 COMMAND_DESCRIPTIONS: dict[str, str] = {
     "inspect": "Summarize a FASTA/GenBank file: record count, lengths, types, warnings",
@@ -31,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def print_overview() -> None:
     """Print the list of available commands with short descriptions."""
-    print("usage: cobalt <command> [args...]")
+    print("usage: cobalt [-v | -q] <command> [args...]")
     print()
     print("Available commands:")
     width = max(len(name) for name in COMMAND_DESCRIPTIONS)
@@ -46,10 +48,11 @@ def print_command_help(command: str) -> int:
     try:
         module = importlib.import_module(f"cobalt.cli.{command}")
     except ImportError as exc:
-        print(
-            f"cobalt {command} requires optional dependencies ({exc.name} is missing).\n"
+        log.error(
+            "cobalt %s requires optional dependencies (%s is missing). "
             'Install them with: pip install "cobalt-sequence-lab[serve]"',
-            file=sys.stderr,
+            command,
+            exc.name,
         )
         return 1
     module.build_parser().print_help()

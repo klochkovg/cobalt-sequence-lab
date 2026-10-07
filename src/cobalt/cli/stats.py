@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 import sys
 from collections.abc import Sequence
 from enum import Enum
@@ -22,6 +23,8 @@ from cobalt.analysis.inspect import (
 )
 from cobalt.analysis.processor import process_records, read_file
 from cobalt.model.record import SequenceRecord
+
+log = logging.getLogger(__name__)
 
 
 class SortingOrder(Enum):
@@ -94,7 +97,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if not primary_result:
         source = "direct input" if args.raw_sequence is not None else args.input
-        print(f"{source}: 0 records")
+        log.warning("%s: 0 records", source)
         return 0
 
     output_type = "json" if args.json else "csv"
@@ -103,16 +106,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             with open(args.out, "w", newline="") as f:
                 write_stats(output_type, f, primary_result.records)
         except IsADirectoryError:
-            print(f"error: --out is a directory: {args.out}")
+            log.error("--out is a directory: %s", args.out)
             return 1
         except FileNotFoundError:
-            print(f"error: no such directory for --out: {args.out}")
+            log.error("no such directory for --out: %s", args.out)
             return 1
         except PermissionError:
-            print(f"error: permission denied writing to: {args.out}")
+            log.error("permission denied writing to: %s", args.out)
             return 1
         except OSError as exc:
-            print(f"error: could not write to {args.out}: {exc}")
+            log.error("could not write to %s: %s", args.out, exc)
             return 1
     else:
         write_stats(output_type, sys.stdout, primary_result.records)
