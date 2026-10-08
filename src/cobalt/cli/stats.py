@@ -8,28 +8,17 @@ import json
 import logging
 import sys
 from collections.abc import Sequence
-from enum import Enum
 from pathlib import Path
 from typing import TextIO
 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from cobalt.analysis.inspect import (
-    FASTA_SUFFIXES,
-    GENBANK_SUFFIXES,
-    STATS_FIELDNAMES,
-    check_file,
-)
+from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
 from cobalt.analysis.processor import process_records, read_file
-from cobalt.model.record import SequenceRecord
+from cobalt.model.stats import STATS_FIELDNAMES, SortKey, StatsRow, build_stats_rows
 
 log = logging.getLogger(__name__)
-
-
-class SortingOrder(Enum):
-    ID = "id"
-    LENGTH = "length"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -48,32 +37,33 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--json", action="store_true", required=False, help="Output present as JSON"
     )
+    parser.add_argument(
+        "--sort",
+        choices=[key.value for key in SortKey],
+        help="Sort rows by this column (default: input order)",
+    )
+    parser.add_argument("--desc", action="store_true", help="Sort in descending order")
     return parser
 
 
-def write_stats_csv(file: TextIO, records: list[SequenceRecord], order: SortingOrder) -> None:
-    writer = csv.DictWriter(file, fieldnames=STATS_FIELDNAMES, extrasaction="ignore")
+def write_stats_csv(file: TextIO, rows: list[StatsRow]) -> None:
+    """Write rows as CSV; None values become empty cells."""
+    writer = csv.DictWriter(file, fieldnames=STATS_FIELDNAMES)
     writer.writeheader()
-    for record in records:
-        writer.writerow(record.to_dict())
+    for row in rows:
+        writer.writerow(row.to_dict())
 
 
-def write_stats_json(file: TextIO, records: list[SequenceRecord], order: SortingOrder) -> None:
-    sorted(records, key=lambda k: getattr(k, order.value))
-    filtered_records = []
-    for record in records:
-        row = record.to_dict()
-        filtered_records.append({name: row[name] for name in STATS_FIELDNAMES})
-    json.dump(filtered_records, file, indent=2)
+def write_stats_json(file: TextIO, rows: list[StatsRow]) -> None:
+    """Write rows as a JSON array; None values become null."""
+    json.dump([row.to_dict() for row in rows], file, indent=2)
 
 
-def write_stats(
-    type: str, file: TextIO, records: list[SequenceRecord], order: SortingOrder = SortingOrder.ID
-) -> None:
+def write_stats(type: str, file: TextIO, rows: list[StatsRow]) -> None:
     if type == "csv":
-        write_stats_csv(file, records, order)
+        write_stats_csv(file, rows)
     elif type == "json":
-        write_stats_json(file, records, order)
+        write_stats_json(file, rows)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -100,11 +90,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         log.warning("%s: 0 records", source)
         return 0
 
+    sort = SortKey(args.sort) if args.sort else None
+    rows = build_stats_rows(primary_result.records, sort=sort, descending=args.desc)
     output_type = "json" if args.json else "csv"
     if args.out:
         try:
             with open(args.out, "w", newline="") as f:
-                write_stats(output_type, f, primary_result.records)
+                write_stats(output_type, f, rows)
         except IsADirectoryError:
             log.error("--out is a directory: %s", args.out)
             return 1
@@ -118,7 +110,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             log.error("could not write to %s: %s", args.out, exc)
             return 1
     else:
-        write_stats(output_type, sys.stdout, primary_result.records)
+        write_stats(output_type, sys.stdout, rows)
     return 0
 
 

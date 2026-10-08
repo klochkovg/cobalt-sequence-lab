@@ -9,8 +9,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
+from cobalt.analysis.processor import read_file
 from cobalt.analysis.validation import print_warnings
-from cobalt.cli.stats import SortingOrder, read_file, write_stats_csv
+from cobalt.cli.stats import write_stats_csv
+from cobalt.model.stats import build_stats_rows
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +51,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.report:
         try:
             with open(args.report, "w", newline="") as f:
-                write_stats_csv(f, primary_result.records, SortingOrder.ID)
+                write_stats_csv(f, build_stats_rows(primary_result.records))
                 # TODO temporary for infrastructure testing
                 # later replace with correct call
         except IsADirectoryError:
@@ -65,7 +67,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             log.error("could not write to %s: %s", args.report, exc)
             return 1
     else:
-        write_stats_csv(sys.stdout, primary_result.records, SortingOrder.ID)
+        write_stats_csv(sys.stdout, build_stats_rows(primary_result.records))
         # TODO the same as above
     return 0
 

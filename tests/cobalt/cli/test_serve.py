@@ -1,6 +1,9 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from cobalt import __version__
+from cobalt.cli.main import main
 from cobalt.cli.serve import build_app, build_parser
 
 
@@ -17,6 +20,12 @@ def test_stats():
     assert resp.status_code == 200
     body = resp.json()
     assert body[0]["length"] == 4
+
+
+def test_stats_matches_cli_json(capsys):
+    resp = TestClient(build_app()).post("/stats", json={"sequence": "MKVLAAGIC"})
+    main(["stats", "--input", "MKVLAAGIC", "--json"])
+    assert resp.json() == json.loads(capsys.readouterr().out)
 
 
 PREFLIGHT_HEADERS = {

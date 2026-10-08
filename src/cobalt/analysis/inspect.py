@@ -24,18 +24,6 @@ MIN_CORE_NUCLEOTIDE_FRACTION = 0.75
 FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
 GENBANK_SUFFIXES = {".gb", ".gbk", ".genbank", ".gp", ".gpt"}
 
-STATS_FIELDNAMES = [
-    "id",
-    "length",
-    "description",
-    "gc_fraction",
-    "type",
-    "source_format",
-    "alphabetic_class",
-    "ambiguity_fraction",
-    "invalid_char_count",
-]
-
 
 def find_warnings(records: list[SeqRecord]):
     """Return a list of warning strings: empty seqs, duplicate IDs, invalid chars."""
