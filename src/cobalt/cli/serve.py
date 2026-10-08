@@ -30,7 +30,7 @@ class StatsRecord(BaseModel):
 
     id: str
     length: int
-    gc_fraction: float
+    gc_fraction: float | None
     type: str
 
 

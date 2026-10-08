@@ -10,9 +10,16 @@ from Bio.SeqRecord import SeqRecord
 
 log = logging.getLogger(__name__)
 
-DNA_LETTERS = set("ACGTN")
-RNA_LETTERS = set("ACGUN")
+# Letters accepted by guess_molecule_type, ambiguity codes included
+DNA_LETTERS = set(IUPACData.ambiguous_dna_letters)
+RNA_LETTERS = set(IUPACData.ambiguous_rna_letters)
 PROTEIN_LETTERS = set(IUPACData.extended_protein_letters)
+# Plain nucleotides; N counts too, as it is the usual "unknown base" filler
+CORE_NUCLEOTIDES = set("ACGTUN")
+# Minimal share of core nucleotides for a sequence to be called DNA/RNA.
+# Most protein letters (M, K, V, R, ...) are also nucleotide ambiguity codes,
+# so the alphabet alone can't tell a short peptide from an ambiguous DNA.
+MIN_CORE_NUCLEOTIDE_FRACTION = 0.75
 
 FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
 GENBANK_SUFFIXES = {".gb", ".gbk", ".genbank", ".gp", ".gpt"}
@@ -49,16 +56,43 @@ def find_warnings(records: list[SeqRecord]):
     return warnings
 
 
-def guess_molecule_type(seq):
-    """Try to guess type of molecule by estimation presence of corresponding elements in the sequence"""
-    letters = set(str(seq).upper())
-    if letters <= DNA_LETTERS:
-        return "DNA"
-    if letters <= RNA_LETTERS:
-        return "RNA"
+def guess_molecule_type(seq) -> str:
+    """Guess the molecule type ("DNA", "RNA", "protein" or "unknown") from sequence letters.
+
+    A sequence is a nucleotide one when all its letters are IUPAC nucleotide codes and
+    at least MIN_CORE_NUCLEOTIDE_FRACTION of them are A/C/G/T/U/N; RNA when it has U
+    and no T. Otherwise it is a protein if all letters are (extended) amino acids.
+    """
+    seq_str = str(seq).upper()
+    if not seq_str:
+        return "unknown"
+    letters = set(seq_str)
+    core_fraction = sum(1 for c in seq_str if c in CORE_NUCLEOTIDES) / len(seq_str)
+    if core_fraction >= MIN_CORE_NUCLEOTIDE_FRACTION:
+        if letters <= DNA_LETTERS:
+            return "DNA"
+        if letters <= RNA_LETTERS:
+            return "RNA"
     if letters <= PROTEIN_LETTERS:
         return "protein"
     return "unknown"
+
+
+def canonical_molecule_type(value: str | None) -> str | None:
+    """Map a GenBank molecule_type annotation ("mRNA", "ss-DNA", ...) to DNA/RNA/protein.
+
+    Returns None for a missing or unrecognized value.
+    """
+    if not value:
+        return None
+    upper = value.upper()
+    if "DNA" in upper:
+        return "DNA"
+    if "RNA" in upper:
+        return "RNA"
+    if upper in {"PROTEIN", "AA"}:
+        return "protein"
+    return None
 
 
 def check_file(path: Path) -> bool:

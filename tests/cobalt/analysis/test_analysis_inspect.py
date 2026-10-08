@@ -1,9 +1,14 @@
 from pathlib import Path
 
+import pytest
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from cobalt.analysis.inspect import find_warnings, guess_molecule_type
+from cobalt.analysis.inspect import (
+    canonical_molecule_type,
+    find_warnings,
+    guess_molecule_type,
+)
 from cobalt.analysis.processor import process_records, read_file
 
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
@@ -60,8 +65,9 @@ def test_guess_molecule_type_dna():
     assert test_result == "DNA"
     test_result = guess_molecule_type(Seq("AGCAU"))
     assert test_result == "RNA"
+    # W is an IUPAC ambiguity code, so this is still a valid RNA
     test_result = guess_molecule_type(Seq("AGCAUGW"))
-    assert test_result == "protein"
+    assert test_result == "RNA"
 
 
 def test_type_finding():
@@ -87,3 +93,71 @@ def test_annotations():
     assert test_result.records[0].type == "DNA"
     assert test_result.records[0].organism == "test_subject_1"
     assert test_result.records[0].topology == "test_topology_1"
+
+
+@pytest.mark.parametrize(
+    ("sequence", "expected"),
+    [
+        ("ACGTRYACGT", "DNA"),  # ambiguity codes R, Y
+        ("acgtnnnnacgt", "DNA"),
+        ("ACGURYACGU", "RNA"),
+        ("MKVLAAGIC", "protein"),
+        ("MKVAG", "protein"),  # only nucleotide-code letters, but too few A/C/G/T
+        ("", "unknown"),
+        ("ACGT123", "unknown"),
+    ],
+)
+def test_guess_molecule_type_cases(sequence, expected):
+    assert guess_molecule_type(Seq(sequence)) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("DNA", "DNA"),
+        ("genomic DNA", "DNA"),
+        ("ss-DNA", "DNA"),
+        ("mRNA", "RNA"),
+        ("ss-RNA", "RNA"),
+        ("protein", "protein"),
+        (None, None),
+        ("", None),
+        ("other", None),
+    ],
+)
+def test_canonical_molecule_type(value, expected):
+    assert canonical_molecule_type(value) == expected
+
+
+def test_process_records_alphabet_class():
+    records = [
+        SeqRecord(Seq("ACGTACGT"), id="clean"),
+        SeqRecord(Seq("ACGTRYACGT"), id="ambiguous"),
+        SeqRecord(Seq("ACGTACGT"), id="bad", annotations={"molecule_type": "RNA"}),
+    ]
+    result = process_records(records, "raw")
+    classes = {record.id: record.alphabetic_class for record in result.records}
+    assert classes == {"clean": "unambiguous", "ambiguous": "ambiguous", "bad": "invalid"}
+
+
+def test_process_records_gc_only_for_nucleotides():
+    records = [
+        SeqRecord(Seq("GGCC"), id="dna"),
+        SeqRecord(Seq("GGCCAU"), id="rna"),
+        SeqRecord(Seq("MKVLAAGIC"), id="protein"),
+    ]
+    result = process_records(records, "raw")
+    gc = {record.id: record.gc_fraction for record in result.records}
+    assert gc["dna"] == pytest.approx(1.0)
+    assert gc["rna"] == pytest.approx(4 / 6)
+    assert gc["protein"] is None
+
+
+def test_process_records_genbank_molecule_type_variants():
+    record = SeqRecord(Seq("ACGUACGU"), id="m1", annotations={"molecule_type": "mRNA"})
+    result = process_records([record], "genbank")
+    processed = result.records[0]
+    assert processed.type == "RNA"
+    assert processed.molecule_type == "mRNA"
+    assert processed.invalid_char_count == 0
+    assert processed.alphabetic_class == "unambiguous"

@@ -8,20 +8,31 @@ from Bio import SeqIO, SeqUtils
 from Bio.Data import IUPACData
 from Bio.SeqRecord import SeqRecord
 
-from cobalt.analysis.inspect import find_warnings, guess_molecule_type
+from cobalt.analysis.inspect import (
+    canonical_molecule_type,
+    find_warnings,
+    guess_molecule_type,
+)
 from cobalt.model.record import AnalysisResult, SequenceRecord
 
 log = logging.getLogger(__name__)
 
 
-def calculate_gc_fraction(seq):
-    """Returns estimation of GC fraction"""
+NUCLEOTIDE_TYPES = {"DNA", "RNA"}
+
+
+def calculate_gc_fraction(seq, molecule_type: str) -> float | None:
+    """Return the GC fraction of a nucleotide sequence, None for other molecule types."""
+    if molecule_type not in NUCLEOTIDE_TYPES:
+        return None
     return SeqUtils.gc_fraction(seq)
 
 
 VALID_DNA = set(IUPACData.ambiguous_dna_letters)
 VALID_RNA = set(IUPACData.ambiguous_rna_letters)
 VALID_PROTEIN = set(IUPACData.extended_protein_letters)
+# For molecules of unknown type, only letters outside every alphabet are invalid
+VALID_ANY = VALID_DNA | VALID_RNA | VALID_PROTEIN
 
 
 def invalid_char_count(seq_record: SeqRecord, type: str) -> int:
@@ -33,7 +44,7 @@ def invalid_char_count(seq_record: SeqRecord, type: str) -> int:
         "DNA": VALID_DNA,
         "RNA": VALID_RNA,
         "protein": VALID_PROTEIN,
-    }.get(type, set())
+    }.get(type, VALID_ANY)
     return sum(1 for c in seq_str if c not in valid_letters)
 
 
@@ -118,24 +129,21 @@ def process_records(records: list[SeqRecord], type: str) -> AnalysisResult | Non
 
     result_array = []
     for seq_record in records:
-        seq_type = str(
-            seq_record.annotations.get("molecule_type")
-            if seq_record.annotations.get("molecule_type")
-            else guess_molecule_type(seq_record.seq)
-        )
+        molecule_type = annotation_str(seq_record, "molecule_type")
+        seq_type = canonical_molecule_type(molecule_type) or guess_molecule_type(seq_record.seq)
         result = SequenceRecord(
             id=str(seq_record.id),
             description=seq_record.description,
             length=len(seq_record),
             sequence=str(seq_record.seq),
-            gc_fraction=calculate_gc_fraction(seq_record.seq),
+            gc_fraction=calculate_gc_fraction(seq_record.seq, seq_type),
             ambiguity_fraction=calculate_ambiguity_fraction(seq_record.seq, seq_type),
             invalid_char_count=invalid_char_count(seq_record, seq_type),
-            alphabetic_class=calculate_alphabet_class(seq_record, seq_type),
+            alphabetic_class=calculate_alphabet_class(seq_record.seq, seq_type),
             source_format=type,
             type=seq_type,
             organism=annotation_str(seq_record, "organism"),
-            molecule_type=annotation_str(seq_record, "molecule_type"),
+            molecule_type=molecule_type,
             topology=annotation_str(seq_record, "topology"),
             feature_count=len(seq_record.features),
         )

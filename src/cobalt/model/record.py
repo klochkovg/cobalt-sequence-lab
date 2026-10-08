@@ -14,7 +14,7 @@ class SequenceRecord:
     description: str
     length: int
     sequence: str
-    gc_fraction: float
+    gc_fraction: float | None
     ambiguity_fraction: float
     invalid_char_count: int
     alphabetic_class: str
@@ -34,7 +34,7 @@ class SequenceRecord:
             description=data["description"],
             length=int(data["length"]),
             sequence=str(data["sequence"]),
-            gc_fraction=float(data["gc_fraction"]),
+            gc_fraction=None if data["gc_fraction"] is None else float(data["gc_fraction"]),
             ambiguity_fraction=float(data["ambiguity_fraction"]),
             invalid_char_count=int(data["invalid_char_count"]),
             alphabetic_class=data["alphabetic_class"],
