@@ -10,6 +10,7 @@ from cobalt.analysis.inspect import (
     guess_molecule_type,
 )
 from cobalt.analysis.processor import process_records, read_file
+from cobalt.model.qc import WarningKind
 
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
 
@@ -34,8 +35,8 @@ def test_find_warnings_empty_records():
     ]
     warnings = find_warnings(input_data)
     assert len(warnings) == 1
-    print(warnings[0])
-    assert warnings[0] == "seq3: empty sequence"
+    assert warnings[0].kind == WarningKind.EMPTY_SEQUENCE
+    assert str(warnings[0]) == "seq3: empty sequence"
 
 
 def test_find_warnings_invalid_character():
@@ -46,7 +47,7 @@ def test_find_warnings_invalid_character():
     ]
     warnings = find_warnings(input_data)
     assert len(warnings) == 1
-    assert warnings[0] == "seq3: invalid characters ['Z']"
+    assert str(warnings[0]) == "seq3: invalid characters ['Z']"
 
 
 def test_find_warnings_duplicate_ids():
@@ -57,7 +58,7 @@ def test_find_warnings_duplicate_ids():
     ]
     warnings = find_warnings(input_data)
     assert len(warnings) == 1
-    assert warnings[0] == "seq2: duplicate ID"
+    assert str(warnings[0]) == "seq2: duplicate ID"
 
 
 def test_guess_molecule_type_dna():
@@ -161,3 +162,19 @@ def test_process_records_genbank_molecule_type_variants():
     assert processed.molecule_type == "mRNA"
     assert processed.invalid_char_count == 0
     assert processed.alphabetic_class == "unambiguous"
+
+
+def test_type_and_warning_counts():
+    records = [
+        SeqRecord(Seq("ACGT"), id="dna1"),
+        SeqRecord(Seq("ACGT"), id="dna1"),
+        SeqRecord(Seq("MKVLAAGIC"), id="prot"),
+        SeqRecord(Seq(""), id="empty"),
+    ]
+    result = process_records(records, "raw")
+    assert result.type_counts() == {"DNA": 2, "protein": 1, "unknown": 1}
+    assert result.warning_counts() == {
+        WarningKind.DUPLICATE_ID: 1,
+        WarningKind.EMPTY_SEQUENCE: 1,
+        WarningKind.INVALID_CHARACTERS: 0,
+    }

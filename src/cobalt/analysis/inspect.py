@@ -8,6 +8,8 @@ from pathlib import Path
 from Bio.Data import IUPACData
 from Bio.SeqRecord import SeqRecord
 
+from cobalt.model.qc import RecordWarning, WarningKind
+
 log = logging.getLogger(__name__)
 
 # Letters accepted by guess_molecule_type, ambiguity codes included
@@ -25,22 +27,29 @@ FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
 GENBANK_SUFFIXES = {".gb", ".gbk", ".genbank", ".gp", ".gpt"}
 
 
-def find_warnings(records: list[SeqRecord]):
-    """Return a list of warning strings: empty seqs, duplicate IDs, invalid chars."""
+def find_warnings(records: list[SeqRecord]) -> list[RecordWarning]:
+    """Return warnings for empty sequences, duplicate IDs and invalid characters."""
     warnings = []
     seen_ids = set()
     valid_chars = set(IUPACData.ambiguous_dna_letters + IUPACData.protein_letters)
 
     for record in records:
+        record_id = str(record.id)
         if record.id in seen_ids:
-            warnings.append(f"{record.id}: duplicate ID")
+            warnings.append(RecordWarning(record_id, WarningKind.DUPLICATE_ID, "duplicate ID"))
         if record.seq is None or len(record.seq) == 0:
-            warnings.append(f"{record.id}: empty sequence")
+            warnings.append(RecordWarning(record_id, WarningKind.EMPTY_SEQUENCE, "empty sequence"))
         seen_ids.add(record.id)
 
         bad_chars = set(str(record.seq).upper()) - valid_chars
         if bad_chars:
-            warnings.append(f"{record.id}: invalid characters {sorted(bad_chars)}")
+            warnings.append(
+                RecordWarning(
+                    record_id,
+                    WarningKind.INVALID_CHARACTERS,
+                    f"invalid characters {sorted(bad_chars)}",
+                )
+            )
     return warnings
 
 

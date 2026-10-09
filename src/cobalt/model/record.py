@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from typing import Any
+
+from cobalt.model.qc import RecordWarning, WarningKind
 
 
 @dataclass(slots=True)
@@ -56,7 +59,7 @@ class SequenceRecord:
 class AnalysisResult:
     """Simple result of multisequence file analysis"""
 
-    warnings: list[str]
+    warnings: list[RecordWarning]
     records_num: int
     min: int
     max: int
@@ -68,7 +71,7 @@ class AnalysisResult:
     def from_dict(cls, data: dict[str, Any]) -> AnalysisResult:
         """Build a result from the dict returned by processor.process_records."""
         return cls(
-            warnings=list(data["warnings"]),
+            warnings=[RecordWarning.from_dict(w) for w in data["warnings"]],
             records_num=int(data["records_num"]),
             min=int(data["min"]),
             max=int(data["max"]),
@@ -80,6 +83,15 @@ class AnalysisResult:
     def to_dict(self) -> dict[str, Any]:
         """Return the result as a plain dict, with records converted to dicts too."""
         return asdict(self)
+
+    def type_counts(self) -> dict[str, int]:
+        """Number of records per molecule type, most common first."""
+        return dict(Counter(record.type for record in self.records).most_common())
+
+    def warning_counts(self) -> dict[WarningKind, int]:
+        """Number of warnings per kind; every kind is present, zero if not found."""
+        counts = Counter(warning.kind for warning in self.warnings)
+        return {kind: counts[kind] for kind in WarningKind}
 
 
 def validate_record(record: SequenceRecord) -> list[str]:

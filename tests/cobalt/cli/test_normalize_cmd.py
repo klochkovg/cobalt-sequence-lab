@@ -67,6 +67,8 @@ def test_normalize_fasta_to_genbank_uses_guessed_type(tmp_path):
     assert [record.annotations["molecule_type"] for record in records] == ["DNA", "RNA"]
 
 
+# Long NCBI-style IDs must not produce a non-standard LOCUS line
+@pytest.mark.filterwarnings("error::Bio.BiopythonWarning")
 def test_normalize_fasta_and_genbank_together(tmp_path):
     fasta_path = tmp_path / "out.fasta"
     genbank_path = tmp_path / "out.gbk"
@@ -84,8 +86,10 @@ def test_normalize_fasta_and_genbank_together(tmp_path):
 
     assert exit_code == 0
     fasta_ids = [record.id for record in SeqIO.parse(fasta_path, "fasta")]
-    genbank_seqs = [str(record.seq) for record in SeqIO.parse(genbank_path, "genbank")]
-    assert len(fasta_ids) == len(genbank_seqs) > 0
+    genbank_records = list(SeqIO.parse(genbank_path, "genbank"))
+    assert len(fasta_ids) == len(genbank_records) > 0
+    assert genbank_records[0].name == "Z78533"
+    assert all(len(record.name) <= 16 for record in genbank_records)
 
 
 def test_normalize_genbank_unknown_molecule_type(tmp_path, capsys):

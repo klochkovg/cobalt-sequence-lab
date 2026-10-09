@@ -5,6 +5,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 
 from cobalt.analysis.processor import process_records
+from cobalt.model.qc import RecordWarning, WarningKind
 from cobalt.model.record import AnalysisResult, SequenceRecord
 
 TEST_DATA = Path(__file__).parents[2] / "test_data"
@@ -33,7 +34,7 @@ def make_record_dict(**overrides):
 
 def make_result_dict(**overrides):
     data = {
-        "warnings": ["seq2: empty sequence"],
+        "warnings": [{"record_id": "seq2", "kind": "empty_sequence", "message": "empty sequence"}],
         "records_num": 1,
         "min": 6,
         "max": 6,
@@ -125,7 +126,8 @@ def test_sequence_record_round_trip():
 def test_analysis_result_from_dict():
     result = AnalysisResult.from_dict(make_result_dict())
 
-    assert result.warnings == ["seq2: empty sequence"]
+    assert result.warnings == [RecordWarning("seq2", WarningKind.EMPTY_SEQUENCE, "empty sequence")]
+    assert str(result.warnings[0]) == "seq2: empty sequence"
     assert result.records_num == 1
     assert result.min == 6
     assert result.max == 6

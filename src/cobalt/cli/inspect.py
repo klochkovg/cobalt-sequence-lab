@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
@@ -11,13 +11,18 @@ from cobalt.analysis.processor import read_file
 from cobalt.model.record import AnalysisResult, SequenceRecord
 
 
+def format_counts(counts: Iterable[tuple[str, int]]) -> str:
+    """Format (name, count) pairs as `name=count, ...`."""
+    return ", ".join(f"{name}={count}" for name, count in counts)
+
+
 def print_file_results(path: Path, result: AnalysisResult) -> None:
     print(f"{path}: {result.records_num} record(s)")
     print(f" length: min={result.min}  max={result.max}  mean={result.mean:.1f}")
-    print(f"Number of warnings {len(result.warnings)}")
-    if len(result.warnings) > 0:
-        for warning in result.warnings:
-            print(f"     {warning}")
+    print(f" molecule types: {format_counts(result.type_counts().items())}")
+    print(f" warnings: {len(result.warnings)} ({format_counts(result.warning_counts().items())})")
+    for warning in result.warnings:
+        print(f"     {warning}")
 
 
 def print_record(record: SequenceRecord) -> None:

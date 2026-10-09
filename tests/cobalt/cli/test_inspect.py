@@ -59,3 +59,25 @@ def test_quiet_hides_warnings(capsys, tmp_path):
 
     assert exit_code == 0
     assert "0 records" not in capsys.readouterr().err
+
+
+def test_inspect_summary_counts(capsys, tmp_path):
+    path = tmp_path / "mixed.fasta"
+    path.write_text(">s1\nACGT\n>s1\nACGT\n>p1\nMKVLAAGIC\n>bad\nACGT12\n")
+
+    exit_code = main(["inspect", "--overview-only", str(path)])
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "molecule types: DNA=2, protein=1, unknown=1" in out
+    assert "warnings: 2 (duplicate_id=1, empty_sequence=0, invalid_characters=1)" in out
+    assert "s1: duplicate ID" in out
+
+
+def test_inspect_summary_genbank(capsys):
+    exit_code = main(["inspect", "--overview-only", str(DATA_DIR / "ls_orchid.gbk")])
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "molecule types: DNA=94" in out
+    assert "warnings: 0 (duplicate_id=0, empty_sequence=0, invalid_characters=0)" in out

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 
-def print_warnings(warnings: list[str]) -> int:
+from cobalt.model.qc import RecordWarning
+
+
+def print_warnings(warnings: Sequence[RecordWarning | str]) -> int:
     """Print already collected warnings to stdout and return their count."""
     for warning in warnings:
         print(f"warning: {warning}")

@@ -12,7 +12,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
-from cobalt.analysis.normalize import uppercase_result
+from cobalt.analysis.normalize import genbank_locus_name, uppercase_result
 from cobalt.analysis.processor import read_file
 
 log = logging.getLogger(__name__)
@@ -70,6 +70,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         SeqRecord(
             Seq(record.sequence),
             id=record.id,
+            # Used for the GenBank LOCUS line, which only fits 16 characters
+            name=genbank_locus_name(record.id),
             description=record.description,
             # GenBank output requires molecule_type; FASTA ignores it
             annotations={"molecule_type": record.molecule_type or record.type},
@@ -78,8 +80,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     ]
     if args.fasta and not write_records(args.fasta, seq_records, "fasta"):
         return 1
-    if args.genbank and not write_records(args.genbank, seq_records, "genbank"):
-        return 1
+    if args.genbank:
+        shortened = sum(1 for seq_record in seq_records if seq_record.name != seq_record.id)
+        if shortened:
+            log.info("%d ID(s) too long for GenBank LOCUS, shortened to accessions", shortened)
+        if not write_records(args.genbank, seq_records, "genbank"):
+            return 1
     return 0
 
 
