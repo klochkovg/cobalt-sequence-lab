@@ -73,3 +73,6 @@ outputs/
 
 # private local "thoughts" files
 thoughts.md
+# Claude Code: shared project settings are tracked, personal overrides are not
+!.claude/settings.json
+.claude/settings.local.json
