@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from cobalt.io.sniff import is_supported, open_text, sniff_compression, sniff_format
+from cobalt.io.sniff import is_blank, is_supported, open_text, sniff_compression, sniff_format
 
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
 FASTA = DATA_DIR / "ls_orchid.fasta"
@@ -65,14 +65,15 @@ def test_sniff_format_content(tmp_path, content, expected):
 
 def test_sniff_format_corrupt_gzip(tmp_path, caplog):
     path = write(tmp_path, "broken.gz", b"\x1f\x8bnot really gzip")
-    with caplog.at_level(logging.WARNING):
+    with caplog.at_level(logging.DEBUG):
         assert sniff_format(path) is None
     assert "cannot read" in caplog.text
 
 
 def test_sniff_format_truncated_bzip2(tmp_path, caplog):
     path = write(tmp_path, "broken.bz2", bz2.compress(FASTA.read_bytes())[:20])
-    assert sniff_format(path) is None
+    with caplog.at_level(logging.DEBUG):
+        assert sniff_format(path) is None
     assert "cannot read" in caplog.text
 
 
@@ -96,3 +97,17 @@ def test_is_supported(tmp_path):
     assert is_supported(FASTA)
     assert is_supported(GENBANK)
     assert not is_supported(write(tmp_path, "notes.txt", b"hello\n"))
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        (b"", True),
+        (b"\n \t\n", True),
+        (gzip.compress(b"\n\n"), True),
+        (b">s1\n", False),
+        (bz2.compress(b"\n\nLOCUS"), False),
+    ],
+)
+def test_is_blank(tmp_path, content, expected):
+    assert is_blank(write(tmp_path, "input", content)) is expected

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from Bio import SeqIO, SeqUtils
 from Bio.Data import IUPACData
@@ -13,6 +14,7 @@ from cobalt.analysis.inspect import (
     find_warnings,
     guess_molecule_type,
 )
+from cobalt.io.sniff import is_blank, open_text, sniff_compression, sniff_format
 from cobalt.model.record import AnalysisResult, SequenceRecord
 
 log = logging.getLogger(__name__)
@@ -111,8 +113,42 @@ def read_file(path, type) -> AnalysisResult | None:
     - warning counts
     """
 
-    records = list(SeqIO.parse(path, type))
+    with open_text(path) as handle:
+        records = list(SeqIO.parse(handle, type))
     return process_records(records, type)
+
+
+class InputFileError(Exception):
+    """An input file that can't be read; the message is ready to be logged."""
+
+
+def load_file(path: Path) -> AnalysisResult | None:
+    """Detect the format of `path` from its content and read it.
+
+    Plain, gzip and bzip2 files are supported. Returns None for an empty file and raises
+    InputFileError if the file is missing, unrecognized or can't be parsed.
+    """
+    if not path.is_file():
+        raise InputFileError(f"file not found: {path}")
+    fmt = sniff_format(path)
+    if fmt is None:
+        try:
+            blank = is_blank(path)
+        except (OSError, EOFError) as exc:
+            raise InputFileError(f"{path}: cannot read: {exc}") from exc
+        if blank:
+            log.debug("%s: empty file", path)
+            return None
+        raise InputFileError(
+            f"{path}: unrecognized format, expected FASTA (starts with '>') "
+            "or GenBank (starts with 'LOCUS')"
+        )
+    log.debug("%s: format=%s, compression=%s", path, fmt, sniff_compression(path))
+    try:
+        return read_file(path, fmt)
+    except (ValueError, EOFError, OSError) as exc:
+        message = str(exc).strip().splitlines()[0] if str(exc).strip() else type(exc).__name__
+        raise InputFileError(f"{path}: cannot parse as {fmt}: {message}") from exc
 
 
 def annotation_str(seq_record: SeqRecord, key: str) -> str | None:

@@ -58,7 +58,8 @@ def sniff_format(path: str | Path) -> str | None:
     """Infer the sequence format of `path` from its content.
 
     Returns "fasta" or "genbank" (Biopython SeqIO format names), or None if the content is
-    not recognized or the compressed data is corrupt. A missing file raises FileNotFoundError.
+    not recognized or the compressed data is corrupt (logged at debug level). A missing file
+    raises FileNotFoundError.
     """
     try:
         with open_text(path) as handle:
@@ -66,7 +67,7 @@ def sniff_format(path: str | Path) -> str | None:
     except FileNotFoundError:
         raise
     except (OSError, EOFError) as exc:
-        log.warning("cannot read %s: %s", path, exc)
+        log.debug("cannot read %s: %s", path, exc)
         return None
 
     fmt = None
@@ -77,6 +78,12 @@ def sniff_format(path: str | Path) -> str | None:
             fmt = "genbank"
     log.debug("%s: format=%s, compression=%s", path, fmt, sniff_compression(path))
     return fmt
+
+
+def is_blank(path: str | Path) -> bool:
+    """Return whether `path` has no content besides whitespace (decompressed if needed)."""
+    with open_text(path) as handle:
+        return not any(line.strip() for line in handle)
 
 
 def is_supported(path: str | Path) -> bool:

@@ -1,4 +1,5 @@
 import csv
+import gzip
 import io
 import json
 from pathlib import Path
@@ -105,3 +106,15 @@ def test_stats_csv_and_json_have_same_rows(capsys):
     for csv_row, json_row in zip(csv_rows, json_rows, strict=True):
         assert list(csv_row) == list(json_row)
         assert csv_row == {k: "" if v is None else str(v) for k, v in json_row.items()}
+
+
+def test_stats_gzip_fasta(capsys, tmp_path):
+    path = tmp_path / "ls_orchid.fasta.gz"
+    path.write_bytes(gzip.compress((DATA_DIR / "ls_orchid.fasta").read_bytes()))
+
+    exit_code = main(["stats", str(path), "--json"])
+
+    assert exit_code == 0
+    records = json.loads(capsys.readouterr().out)
+    assert len(records) == 94
+    assert records[0]["source_format"] == "fasta"

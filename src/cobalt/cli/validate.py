@@ -8,8 +8,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
-from cobalt.analysis.processor import read_file
+from cobalt.analysis.processor import InputFileError, load_file
 from cobalt.analysis.validation import print_warnings
 from cobalt.cli.stats import write_stats_csv
 from cobalt.model.stats import build_stats_rows
@@ -20,7 +19,7 @@ log = logging.getLogger(__name__)
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for validate command."""
     parser = argparse.ArgumentParser(prog="cobalt validate")
-    parser.add_argument("input", help="Input FASTA/GenBank file")
+    parser.add_argument("input", help="Input FASTA/GenBank file (plain, gzip or bzip2)")
     parser.add_argument("--report", required=False, help="JSON report output path")
     parser.add_argument(
         "--warnings",
@@ -35,13 +34,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     data_file_path = Path(args.input)
 
-    if not check_file(data_file_path):
+    try:
+        primary_result = load_file(data_file_path)
+    except InputFileError as exc:
+        log.error("%s", exc)
         return 1
-    primary_result = None
-    if data_file_path.suffix.lower() in FASTA_SUFFIXES:
-        primary_result = read_file(data_file_path, "fasta")
-    if data_file_path.suffix.lower() in GENBANK_SUFFIXES:
-        primary_result = read_file(data_file_path, "genbank")
     if not primary_result:
         log.warning("%s: 0 records", data_file_path)
         return 0

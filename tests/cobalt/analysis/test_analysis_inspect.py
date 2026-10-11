@@ -1,3 +1,5 @@
+import bz2
+import gzip
 from pathlib import Path
 
 import pytest
@@ -9,7 +11,7 @@ from cobalt.analysis.inspect import (
     find_warnings,
     guess_molecule_type,
 )
-from cobalt.analysis.processor import process_records, read_file
+from cobalt.analysis.processor import InputFileError, load_file, process_records, read_file
 from cobalt.model.qc import WarningKind
 
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
@@ -178,3 +180,64 @@ def test_type_and_warning_counts():
         WarningKind.EMPTY_SEQUENCE: 1,
         WarningKind.INVALID_CHARACTERS: 0,
     }
+
+
+@pytest.mark.parametrize("compress", [gzip.compress, bz2.compress])
+@pytest.mark.parametrize(
+    ("source", "fmt"), [("ls_orchid.fasta", "fasta"), ("ls_orchid.gbk", "genbank")]
+)
+def test_load_file_compressed(tmp_path, compress, source, fmt):
+    path = tmp_path / "input"
+    path.write_bytes(compress((DATA_DIR / source).read_bytes()))
+    result = load_file(path)
+    assert result is not None
+    assert result.records_num == 94
+    assert result.type == fmt
+
+
+def test_load_file_ignores_extension(tmp_path):
+    path = tmp_path / "mislabelled.fasta"
+    path.write_bytes((DATA_DIR / "ls_orchid.gbk").read_bytes())
+    result = load_file(path)
+    assert result is not None
+    assert result.type == "genbank"
+
+
+@pytest.mark.parametrize("content", [b"", b"\n  \n", gzip.compress(b"\n")])
+def test_load_file_blank_returns_none(tmp_path, content):
+    path = tmp_path / "blank"
+    path.write_bytes(content)
+    assert load_file(path) is None
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        (b"hello\n", "unrecognized format"),
+        (b"\x1f\x8bnot really gzip", "cannot read"),
+        (
+            gzip.compress((DATA_DIR / "ls_orchid.fasta").read_bytes())[:3000],
+            "cannot parse as fasta",
+        ),
+    ],
+)
+def test_load_file_errors(tmp_path, content, message):
+    path = tmp_path / "input"
+    path.write_bytes(content)
+    with pytest.raises(InputFileError, match=message):
+        load_file(path)
+
+
+def test_load_file_missing(tmp_path):
+    with pytest.raises(InputFileError, match="file not found"):
+        load_file(tmp_path / "missing.fasta")
+
+
+def test_load_file_parser_value_error(monkeypatch):
+    def broken_parse(handle, fmt):
+        raise ValueError("bad record\nwith a long explanation")
+
+    monkeypatch.setattr("cobalt.analysis.processor.SeqIO.parse", broken_parse)
+    with pytest.raises(InputFileError) as excinfo:
+        load_file(DATA_DIR / "ls_orchid.fasta")
+    assert str(excinfo.value).endswith("cannot parse as fasta: bad record")

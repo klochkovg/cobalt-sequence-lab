@@ -14,8 +14,7 @@ from typing import TextIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
-from cobalt.analysis.processor import process_records, read_file
+from cobalt.analysis.processor import InputFileError, load_file, process_records
 from cobalt.model.stats import STATS_FIELDNAMES, SortKey, StatsRow, build_stats_rows
 
 log = logging.getLogger(__name__)
@@ -25,7 +24,9 @@ def build_parser() -> argparse.ArgumentParser:
     """Build parser for stats command."""
     parser = argparse.ArgumentParser(prog="cobalt stats")
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("input", nargs="?", default=None, help="Input FASTA/GenBank file")
+    source.add_argument(
+        "input", nargs="?", default=None, help="Input FASTA/GenBank file (plain, gzip or bzip2)"
+    )
     source.add_argument(
         "--input",
         dest="raw_sequence",
@@ -76,14 +77,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         record = SeqRecord(Seq(args.raw_sequence), id="direct_input")
         primary_result = process_records([record], "raw")
     else:
-        data_file_path = Path(args.input)
-        if not check_file(data_file_path):
+        try:
+            primary_result = load_file(Path(args.input))
+        except InputFileError as exc:
+            log.error("%s", exc)
             return 1
-        primary_result = None
-        if data_file_path.suffix.lower() in FASTA_SUFFIXES:
-            primary_result = read_file(data_file_path, "fasta")
-        if data_file_path.suffix.lower() in GENBANK_SUFFIXES:
-            primary_result = read_file(data_file_path, "genbank")
 
     if not primary_result:
         source = "direct input" if args.raw_sequence is not None else args.input

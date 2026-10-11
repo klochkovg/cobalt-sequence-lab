@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-from cobalt.analysis.inspect import FASTA_SUFFIXES, GENBANK_SUFFIXES, check_file
-from cobalt.analysis.processor import read_file
+from cobalt.analysis.processor import InputFileError, load_file
+from cobalt.io.sniff import sniff_compression
 from cobalt.model.record import AnalysisResult, SequenceRecord
+
+log = logging.getLogger(__name__)
 
 
 def format_counts(counts: Iterable[tuple[str, int]]) -> str:
@@ -17,7 +20,9 @@ def format_counts(counts: Iterable[tuple[str, int]]) -> str:
 
 
 def print_file_results(path: Path, result: AnalysisResult) -> None:
+    compression = sniff_compression(path)
     print(f"{path}: {result.records_num} record(s)")
+    print(f" format: {result.type}" + (f" ({compression})" if compression else ""))
     print(f" length: min={result.min}  max={result.max}  mean={result.mean:.1f}")
     print(f" molecule types: {format_counts(result.type_counts().items())}")
     print(f" warnings: {len(result.warnings)} ({format_counts(result.warning_counts().items())})")
@@ -42,7 +47,7 @@ def print_record(record: SequenceRecord) -> None:
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for inspect command."""
     parser = argparse.ArgumentParser(prog="cobalt inspect")
-    parser.add_argument("input", help="Input FASTA/GenBank file")
+    parser.add_argument("input", help="Input FASTA/GenBank file (plain, gzip or bzip2)")
     parser.add_argument(
         "--overview-only",
         action="store_true",
@@ -56,20 +61,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the inspect command.
-    Checks that the input file exists and is a FASTA file, then
-    reports the number of records inside
+
+    Detects the input format from the content (FASTA or GenBank, optionally gzip/bzip2
+    compressed), prints a summary of the file and then the records.
     """
     args = build_parser().parse_args(argv)
     path = Path(args.input)
 
-    if not check_file(path):
+    try:
+        primary_result = load_file(path)
+    except InputFileError as exc:
+        log.error("%s", exc)
         return 1
-
-    primary_result = None
-    if path.suffix.lower() in FASTA_SUFFIXES:
-        primary_result = read_file(path, "fasta")
-    if path.suffix.lower() in GENBANK_SUFFIXES:
-        primary_result = read_file(path, "genbank")
     if not primary_result:
         print(f"{path}: 0 records")
         return 0

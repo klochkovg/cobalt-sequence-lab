@@ -1,3 +1,4 @@
+import gzip
 from pathlib import Path
 
 import pytest
@@ -81,3 +82,55 @@ def test_inspect_summary_genbank(capsys):
     assert exit_code == 0
     assert "molecule types: DNA=94" in out
     assert "warnings: 0 (duplicate_id=0, empty_sequence=0, invalid_characters=0)" in out
+
+
+def test_inspect_prints_format(capsys):
+    exit_code = main(["inspect", "--overview-only", str(DATA_DIR / "ls_orchid.fasta")])
+
+    assert exit_code == 0
+    assert " format: fasta\n" in capsys.readouterr().out
+
+
+def test_inspect_gzip_genbank(capsys, tmp_path):
+    path = tmp_path / "ls_orchid.gbk.gz"
+    path.write_bytes(gzip.compress((DATA_DIR / "ls_orchid.gbk").read_bytes()))
+
+    exit_code = main(["inspect", "--overview-only", str(path)])
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "94 record(s)" in out
+    assert " format: genbank (gzip)" in out
+
+
+def test_inspect_genbank_content_with_fasta_extension(capsys, tmp_path):
+    path = tmp_path / "mislabelled.fasta"
+    path.write_bytes((DATA_DIR / "ls_orchid.gbk").read_bytes())
+
+    exit_code = main(["inspect", "--overview-only", str(path)])
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "94 record(s)" in out
+    assert " format: genbank" in out
+
+
+def test_inspect_unrecognized_content(capsys, caplog, tmp_path):
+    path = tmp_path / "junk.gb"
+    path.write_text("hello\n")
+
+    exit_code = main(["inspect", str(path)])
+
+    assert exit_code == 1
+    assert "unrecognized format" in caplog.text
+    assert capsys.readouterr().out == ""
+
+
+def test_inspect_empty_file(capsys, tmp_path):
+    path = tmp_path / "empty.fasta"
+    path.write_text("\n\n")
+
+    exit_code = main(["inspect", str(path)])
+
+    assert exit_code == 0
+    assert "0 records" in capsys.readouterr().out

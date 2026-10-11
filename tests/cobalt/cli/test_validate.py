@@ -1,3 +1,4 @@
+import bz2
 from pathlib import Path
 
 import pytest
@@ -33,15 +34,35 @@ def test_validate_warnings_file_not_found(capsys, caplog):
     assert out == ""
 
 
-def test_validate_warnings_unsupported_extension(capsys, caplog, tmp_path):
+def test_validate_warnings_any_extension(capsys, tmp_path):
     path = tmp_path / "input.txt"
     path.write_text(">seq1\nACGT\n")
 
     exit_code, out = run_warnings(capsys, path)
 
+    assert exit_code == 0
+    assert "0 warning(s) found" in out
+
+
+def test_validate_warnings_unrecognized_content(capsys, caplog, tmp_path):
+    path = tmp_path / "input.fasta"
+    path.write_text("just some notes\n")
+
+    exit_code, out = run_warnings(capsys, path)
+
     assert exit_code == 1
-    assert "unsupported extension" in caplog.text
+    assert "unrecognized format" in caplog.text
     assert out == ""
+
+
+def test_validate_bzip2_genbank(capsys, tmp_path):
+    path = tmp_path / "ls_orchid.gbk.bz2"
+    path.write_bytes(bz2.compress((DATA_DIR / "ls_orchid.gbk").read_bytes()))
+
+    exit_code = main(["validate", str(path)])
+
+    assert exit_code == 0
+    assert len(capsys.readouterr().out.splitlines()) == 95  # header + 94 records
 
 
 def test_validate_warnings_clean_file(capsys, tmp_path):

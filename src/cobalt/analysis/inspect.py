@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from Bio.Data import IUPACData
 from Bio.SeqRecord import SeqRecord
@@ -22,9 +21,6 @@ CORE_NUCLEOTIDES = set("ACGTUN")
 # Most protein letters (M, K, V, R, ...) are also nucleotide ambiguity codes,
 # so the alphabet alone can't tell a short peptide from an ambiguous DNA.
 MIN_CORE_NUCLEOTIDE_FRACTION = 0.75
-
-FASTA_SUFFIXES = {".fasta", ".fa", ".fna"}
-GENBANK_SUFFIXES = {".gb", ".gbk", ".genbank", ".gp", ".gpt"}
 
 
 def find_warnings(records: list[SeqRecord]) -> list[RecordWarning]:
@@ -90,18 +86,3 @@ def canonical_molecule_type(value: str | None) -> str | None:
     if upper in {"PROTEIN", "AA"}:
         return "protein"
     return None
-
-
-def check_file(path: Path) -> bool:
-    """ "Checking the file is correct and exists"""
-    if not path.is_file():
-        log.error("file not found: %s", path)
-        return False
-    if path.suffix.lower() not in (FASTA_SUFFIXES | GENBANK_SUFFIXES):
-        log.error(
-            "unsupported extension %r, expected (%s)",
-            path.suffix,
-            ", ".join(sorted(FASTA_SUFFIXES | GENBANK_SUFFIXES)),
-        )
-        return False
-    return True

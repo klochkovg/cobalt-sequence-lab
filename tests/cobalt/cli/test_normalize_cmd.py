@@ -1,3 +1,4 @@
+import gzip
 from pathlib import Path
 
 import pytest
@@ -106,3 +107,26 @@ def test_normalize_requires_output(capsys):
     with pytest.raises(SystemExit):
         main(["normalize", str(TEST_DATA / "ls_orchid.fasta")])
     assert "at least one of --fasta or --genbank" in capsys.readouterr().err
+
+
+def test_normalize_gzip_genbank_input(tmp_path):
+    input_path = tmp_path / "ls_orchid.gbk.gz"
+    input_path.write_bytes(gzip.compress((TEST_DATA / "ls_orchid.gbk").read_bytes()))
+    output_path = tmp_path / "out.fasta"
+
+    exit_code = main(["normalize", str(input_path), "--fasta", str(output_path)])
+
+    assert exit_code == 0
+    assert len(list(SeqIO.parse(output_path, "fasta"))) == 94
+
+
+def test_normalize_unrecognized_input(tmp_path, caplog):
+    input_path = tmp_path / "notes.gb"
+    input_path.write_text("hello\n")
+    output_path = tmp_path / "out.fasta"
+
+    exit_code = main(["normalize", str(input_path), "--fasta", str(output_path)])
+
+    assert exit_code == 1
+    assert "unrecognized format" in caplog.text
+    assert not output_path.exists()
