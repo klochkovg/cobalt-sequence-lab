@@ -134,3 +134,34 @@ def test_inspect_empty_file(capsys, tmp_path):
 
     assert exit_code == 0
     assert "0 records" in capsys.readouterr().out
+
+
+def test_inspect_no_false_invalid_character_warnings(capsys, tmp_path):
+    path = tmp_path / "rna_protein.fasta"
+    path.write_text(">r1\nACGUACGU\n>p1\nMKVXB\n")
+
+    exit_code = main(["inspect", "--overview-only", str(path)])
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "warnings: 0 (duplicate_id=0, empty_sequence=0, invalid_characters=0)" in out
+
+
+def test_inspect_fasta_listing_has_no_type_line(capsys, tmp_path):
+    path = tmp_path / "dna.fasta"
+    path.write_text(">s1\nACGT\n")
+
+    exit_code = main(["inspect", str(path)])
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "Type guess      : DNA" in out
+    assert "Type            :" not in out
+
+
+def test_inspect_genbank_listing_shows_annotated_type(capsys):
+    exit_code = main(["inspect", "--output-seq-number", "1", str(DATA_DIR / "ls_orchid.gbk")])
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "Type            : DNA" in out

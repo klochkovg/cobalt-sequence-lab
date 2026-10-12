@@ -35,7 +35,7 @@ def test_find_warnings_empty_records():
         SeqRecord(Seq("TTGCTAGT"), id="seq2"),
         SeqRecord(Seq(""), id="seq3"),
     ]
-    warnings = find_warnings(input_data)
+    warnings = find_warnings(input_data, ["DNA", "DNA", "unknown"])
     assert len(warnings) == 1
     assert warnings[0].kind == WarningKind.EMPTY_SEQUENCE
     assert str(warnings[0]) == "seq3: empty sequence"
@@ -47,7 +47,7 @@ def test_find_warnings_invalid_character():
         SeqRecord(Seq("TTGCTAGT"), id="seq2"),
         SeqRecord(Seq("ADCCTZGT"), id="seq3"),
     ]
-    warnings = find_warnings(input_data)
+    warnings = find_warnings(input_data, ["DNA", "DNA", "DNA"])
     assert len(warnings) == 1
     assert str(warnings[0]) == "seq3: invalid characters ['Z']"
 
@@ -58,9 +58,33 @@ def test_find_warnings_duplicate_ids():
         SeqRecord(Seq("TTGCTAGT"), id="seq2"),
         SeqRecord(Seq("ADCCTGT"), id="seq2"),
     ]
-    warnings = find_warnings(input_data)
+    warnings = find_warnings(input_data, ["DNA", "DNA", "DNA"])
     assert len(warnings) == 1
     assert str(warnings[0]) == "seq2: duplicate ID"
+
+
+@pytest.mark.parametrize(
+    ("sequence", "molecule_type", "expected"),
+    [
+        ("ACGUACGU", "RNA", []),
+        ("MKVXBZ", "protein", []),
+        ("MKV*", "protein", ["seq: invalid characters ['*']"]),
+        ("ACGT-ACGT", "DNA", ["seq: invalid characters ['-']"]),
+        ("ACGUACGU", "DNA", ["seq: invalid characters ['U']"]),
+    ],
+)
+def test_find_warnings_uses_molecule_type(sequence, molecule_type, expected):
+    warnings = find_warnings([SeqRecord(Seq(sequence), id="seq")], [molecule_type])
+    assert [str(warning) for warning in warnings] == expected
+
+
+def test_process_records_warnings_follow_annotation():
+    records = [
+        SeqRecord(Seq("ACGTACGT"), id="annotated", annotations={"molecule_type": "RNA"}),
+        SeqRecord(Seq("ACGUACGU"), id="guessed"),
+    ]
+    result = process_records(records, "genbank")
+    assert [str(warning) for warning in result.warnings] == ["annotated: invalid characters ['T']"]
 
 
 def test_guess_molecule_type_dna():

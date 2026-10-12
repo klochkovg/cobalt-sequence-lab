@@ -13,6 +13,7 @@ from cobalt.analysis.inspect import (
     canonical_molecule_type,
     find_warnings,
     guess_molecule_type,
+    valid_letters,
 )
 from cobalt.io.sniff import is_blank, open_text, sniff_compression, sniff_format
 from cobalt.model.record import AnalysisResult, SequenceRecord
@@ -33,8 +34,6 @@ def calculate_gc_fraction(seq, molecule_type: str) -> float | None:
 VALID_DNA = set(IUPACData.ambiguous_dna_letters)
 VALID_RNA = set(IUPACData.ambiguous_rna_letters)
 VALID_PROTEIN = set(IUPACData.extended_protein_letters)
-# For molecules of unknown type, only letters outside every alphabet are invalid
-VALID_ANY = VALID_DNA | VALID_RNA | VALID_PROTEIN
 
 
 def invalid_char_count(seq_record: SeqRecord, type: str) -> int:
@@ -42,12 +41,8 @@ def invalid_char_count(seq_record: SeqRecord, type: str) -> int:
     if seq_record.seq is None:
         return 0
     seq_str = str(seq_record.seq).upper()
-    valid_letters = {
-        "DNA": VALID_DNA,
-        "RNA": VALID_RNA,
-        "protein": VALID_PROTEIN,
-    }.get(type, VALID_ANY)
-    return sum(1 for c in seq_str if c not in valid_letters)
+    valid = valid_letters(type)
+    return sum(1 for c in seq_str if c not in valid)
 
 
 AMBIGUOUS_DNA = set(IUPACData.ambiguous_dna_letters) - set(IUPACData.unambiguous_dna_letters)
@@ -68,12 +63,12 @@ def calculate_alphabet_class(seq, molecule_type) -> str:
     if not seq_str:
         return "unknown"
 
-    valid_letters = {
+    alphabet = {
         "DNA": VALID_DNA,
         "RNA": VALID_RNA,
         "protein": VALID_PROTEIN,
     }.get(molecule_type)
-    if valid_letters is None:
+    if alphabet is None:
         return "unknown"
 
     ambiguity_letters = {
@@ -83,7 +78,7 @@ def calculate_alphabet_class(seq, molecule_type) -> str:
     }[molecule_type]
 
     letters = set(seq_str)
-    if letters - valid_letters:
+    if letters - alphabet:
         return "invalid"
     if letters & ambiguity_letters:
         return "ambiguous"
@@ -164,9 +159,11 @@ def process_records(records: list[SeqRecord], type: str) -> AnalysisResult | Non
         return None
 
     result_array = []
+    molecule_types = []
     for seq_record in records:
         molecule_type = annotation_str(seq_record, "molecule_type")
         seq_type = canonical_molecule_type(molecule_type) or guess_molecule_type(seq_record.seq)
+        molecule_types.append(seq_type)
         result = SequenceRecord(
             id=str(seq_record.id),
             description=seq_record.description,
@@ -186,7 +183,7 @@ def process_records(records: list[SeqRecord], type: str) -> AnalysisResult | Non
         result_array.append(result)
 
     return AnalysisResult(
-        warnings=find_warnings(records),
+        warnings=find_warnings(records, molecule_types),
         records_num=len(lengths),
         min=min(lengths),
         max=max(lengths),

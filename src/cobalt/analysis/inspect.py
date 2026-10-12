@@ -23,13 +23,25 @@ CORE_NUCLEOTIDES = set("ACGTUN")
 MIN_CORE_NUCLEOTIDE_FRACTION = 0.75
 
 
-def find_warnings(records: list[SeqRecord]) -> list[RecordWarning]:
-    """Return warnings for empty sequences, duplicate IDs and invalid characters."""
+def valid_letters(molecule_type: str) -> set[str]:
+    """Return the letters valid for `molecule_type`; any IUPAC letter for an unknown type."""
+    return {
+        "DNA": DNA_LETTERS,
+        "RNA": RNA_LETTERS,
+        "protein": PROTEIN_LETTERS,
+    }.get(molecule_type, DNA_LETTERS | RNA_LETTERS | PROTEIN_LETTERS)
+
+
+def find_warnings(records: list[SeqRecord], molecule_types: list[str]) -> list[RecordWarning]:
+    """Return warnings for empty sequences, duplicate IDs and invalid characters.
+
+    `molecule_types` holds the molecule type of each record; characters are checked against
+    the alphabet of that type (see valid_letters).
+    """
     warnings = []
     seen_ids = set()
-    valid_chars = set(IUPACData.ambiguous_dna_letters + IUPACData.protein_letters)
 
-    for record in records:
+    for record, molecule_type in zip(records, molecule_types, strict=True):
         record_id = str(record.id)
         if record.id in seen_ids:
             warnings.append(RecordWarning(record_id, WarningKind.DUPLICATE_ID, "duplicate ID"))
@@ -37,7 +49,7 @@ def find_warnings(records: list[SeqRecord]) -> list[RecordWarning]:
             warnings.append(RecordWarning(record_id, WarningKind.EMPTY_SEQUENCE, "empty sequence"))
         seen_ids.add(record.id)
 
-        bad_chars = set(str(record.seq).upper()) - valid_chars
+        bad_chars = set(str(record.seq).upper()) - valid_letters(molecule_type)
         if bad_chars:
             warnings.append(
                 RecordWarning(
