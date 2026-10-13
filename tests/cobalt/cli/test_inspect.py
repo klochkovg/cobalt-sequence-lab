@@ -165,3 +165,41 @@ def test_inspect_genbank_listing_shows_annotated_type(capsys):
     out = capsys.readouterr().out
     assert exit_code == 0
     assert "Type            : DNA" in out
+
+
+@pytest.mark.parametrize(("args", "expected"), [([], 3), (["--output-seq-number", "2"], 2)])
+def test_inspect_output_seq_number(capsys, tmp_path, args, expected):
+    path = tmp_path / "three.fasta"
+    path.write_text(">s1\nACGT\n>s2\nACGT\n>s3\nACGT\n")
+
+    exit_code = main(["inspect", *args, str(path)])
+
+    assert exit_code == 0
+    assert capsys.readouterr().out.count("Sequence name   :") == expected
+
+
+def test_inspect_output_seq_number_zero_lists_nothing(capsys):
+    exit_code = main(["inspect", "--output-seq-number", "0", str(DATA_DIR / "ls_orchid.fasta")])
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "94 record(s)" in out
+    assert "Sequence name   :" not in out
+
+
+@pytest.mark.parametrize("value", ["-1", "abc"])
+def test_inspect_output_seq_number_rejects_invalid(capsys, value):
+    with pytest.raises(SystemExit) as excinfo:
+        main(["inspect", "--output-seq-number", value, str(DATA_DIR / "ls_orchid.fasta")])
+
+    assert excinfo.value.code == 2
+    assert "--output-seq-number" in capsys.readouterr().err
+
+
+def test_inspect_overview_only_skips_listing(capsys):
+    exit_code = main(["inspect", "--overview-only", str(DATA_DIR / "ls_orchid.fasta")])
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert " length: min=" in out
+    assert "Sequence name   :" not in out

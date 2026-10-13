@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 from collections.abc import Iterable, Sequence
+from itertools import islice
 from pathlib import Path
 
 from cobalt.analysis.processor import InputFileError, load_file
@@ -44,6 +45,17 @@ def print_record(record: SequenceRecord) -> None:
     print()
 
 
+def non_negative_int(value: str) -> int:
+    """argparse type for an integer >= 0."""
+    try:
+        number = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid integer: {value!r}") from None
+    if number < 0:
+        raise argparse.ArgumentTypeError(f"must be 0 or greater, got {number}")
+    return number
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for inspect command."""
     parser = argparse.ArgumentParser(prog="cobalt inspect")
@@ -51,10 +63,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--overview-only",
         action="store_true",
-        help="Print only the record count, skip length/GC stats",
+        help="Print only the file summary, skip the per-record listing",
     )
     parser.add_argument(
-        "--output-seq-number", type=int, default=-1, help="Number of sequences int output"
+        "--output-seq-number",
+        type=non_negative_int,
+        default=None,
+        metavar="N",
+        help="List only the first N records (default: all)",
     )
     return parser
 
@@ -80,12 +96,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.overview_only:
         return 0
     print("--------------------------------------------------------------------------------------")
-    number_of_sequences = args.output_seq_number
-    counter = 0
-    for record in primary_result.records:
-        counter = counter + 1
-        if counter > number_of_sequences and number_of_sequences != -1:
-            break
+    for record in islice(primary_result.records, args.output_seq_number):
         print_record(record)
     return 0
 
