@@ -93,6 +93,7 @@ conda create -n biolab-dev -c conda-forge \
 ```bash
 cobalt inspect input.gb
 cobalt stats input.fasta --out stats.csv
+cobalt stats input.gb --format parquet --out stats.parquet   # needs: pip install "cobalt-sequence-lab[parquet]"
 cobalt normalize input.gb --fasta cleaned.fasta
 cobalt validate input.fasta --report qc.json
 cobalt serve

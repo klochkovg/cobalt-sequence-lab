@@ -19,6 +19,8 @@ from cobalt.model.stats import STATS_FIELDNAMES, SortKey, StatsRow, build_stats_
 
 log = logging.getLogger(__name__)
 
+OUTPUT_FORMATS = ["csv", "json", "parquet"]
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for stats command."""
@@ -35,8 +37,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument("--out", required=False, help="Output stats file path")
-    parser.add_argument(
-        "--json", action="store_true", required=False, help="Output present as JSON"
+    output_format = parser.add_mutually_exclusive_group()
+    output_format.add_argument(
+        "--format",
+        choices=OUTPUT_FORMATS,
+        help="Output format (default: csv); parquet needs --out and the 'parquet' extra",
+    )
+    output_format.add_argument(
+        "--json", dest="format", action="store_const", const="json", help="Same as --format json"
     )
     parser.add_argument(
         "--sort",
@@ -60,11 +68,44 @@ def write_stats_json(file: TextIO, rows: list[StatsRow]) -> None:
     json.dump([row.to_dict() for row in rows], file, indent=2)
 
 
+def write_stats_parquet(path: str, rows: list[StatsRow]) -> None:
+    """Write rows as a Parquet file; None values become nulls.
+
+    pyarrow is imported here because it is an optional dependency.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    # Explicit types, so columns that are all None (e.g. organism for FASTA) are not typed null
+    schema = pa.schema(
+        [
+            ("id", pa.string()),
+            ("length", pa.int64()),
+            ("description", pa.string()),
+            ("gc_fraction", pa.float64()),
+            ("type", pa.string()),
+            ("source_format", pa.string()),
+            ("alphabetic_class", pa.string()),
+            ("ambiguity_fraction", pa.float64()),
+            ("invalid_char_count", pa.int64()),
+            ("organism", pa.string()),
+            ("molecule_type", pa.string()),
+            ("topology", pa.string()),
+            ("feature_count", pa.int64()),
+        ]
+    )
+    table = pa.Table.from_pylist([row.to_dict() for row in rows], schema=schema)
+    pq.write_table(table, path)
+
+
 def write_stats(type: str, file: TextIO, rows: list[StatsRow]) -> None:
+    """Write rows to a text stream as CSV or JSON."""
     if type == "csv":
         write_stats_csv(file, rows)
     elif type == "json":
         write_stats_json(file, rows)
+    else:
+        raise ValueError(f"unsupported text output format: {type}")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -72,6 +113,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     In case of empty --out, input to stdout
     """
     args = build_parser().parse_args(argv)
+    output_type = args.format or "csv"
+    if output_type == "parquet" and not args.out:
+        log.error("parquet output is binary and needs --out FILE")
+        return 1
 
     if args.raw_sequence is not None:
         record = SeqRecord(Seq(args.raw_sequence), id="direct_input")
@@ -90,11 +135,20 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     sort = SortKey(args.sort) if args.sort else None
     rows = build_stats_rows(primary_result.records, sort=sort, descending=args.desc)
-    output_type = "json" if args.json else "csv"
     if args.out:
         try:
-            with open(args.out, "w", newline="") as f:
-                write_stats(output_type, f, rows)
+            if output_type == "parquet":
+                write_stats_parquet(args.out, rows)
+            else:
+                with open(args.out, "w", newline="") as f:
+                    write_stats(output_type, f, rows)
+        except ImportError as exc:
+            log.error(
+                "parquet output requires optional dependencies (%s is missing). "
+                'Install them with: pip install "cobalt-sequence-lab[parquet]"',
+                exc.name,
+            )
+            return 1
         except IsADirectoryError:
             log.error("--out is a directory: %s", args.out)
             return 1

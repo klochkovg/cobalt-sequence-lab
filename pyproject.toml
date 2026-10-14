@@ -12,8 +12,9 @@ dependencies = ["biopython>=1.83", "rich>=13"]
 
 [project.optional-dependencies]
 serve = ["fastapi", "uvicorn[standard]", "pydantic>=2"]
+parquet = ["pyarrow"]
 dev = [
-    "cobalt-sequence-lab[serve]",
+    "cobalt-sequence-lab[serve,parquet]",
     "pytest",
     "pytest-cov",
     "httpx2",  # required by fastapi.testclient
@@ -36,3 +37,7 @@ line-length = 100
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+[[tool.mypy.overrides]]
+# pyarrow ships without type stubs
+module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true

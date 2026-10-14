@@ -4,7 +4,10 @@ import io
 import json
 from pathlib import Path
 
+import pytest
+
 from cobalt.cli.main import main
+from cobalt.model.stats import STATS_FIELDNAMES
 
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
 
@@ -118,3 +121,41 @@ def test_stats_gzip_fasta(capsys, tmp_path):
     records = json.loads(capsys.readouterr().out)
     assert len(records) == 94
     assert records[0]["source_format"] == "fasta"
+
+
+def test_stats_parquet_matches_json(capsys, tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    path = str(DATA_DIR / "ls_orchid.gbk")
+    out = tmp_path / "stats.parquet"
+
+    exit_code, _ = run_stats(capsys, path, "--format", "parquet", "--out", str(out))
+    _, json_out = run_stats(capsys, path, "--json")
+
+    assert exit_code == 0
+    assert pq.read_table(out).to_pylist() == json.loads(json_out)
+
+
+def test_stats_parquet_keeps_types_of_empty_annotations(capsys, tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    out = tmp_path / "stats.parquet"
+
+    exit_code, _ = run_stats(
+        capsys, str(DATA_DIR / "ls_orchid.fasta"), "--format", "parquet", "--out", str(out)
+    )
+
+    schema = pq.read_schema(out)
+    assert exit_code == 0
+    assert schema.names == STATS_FIELDNAMES
+    assert str(schema.field("organism").type) == "string"
+
+
+def test_stats_parquet_needs_out(capsys):
+    exit_code, out = run_stats(capsys, "--input", "ACGT", "--format", "parquet")
+    assert exit_code == 1
+    assert out == ""
+
+
+def test_stats_format_json_same_as_json_flag(capsys):
+    _, by_flag = run_stats(capsys, "--input", "ACGT", "--json")
+    _, by_format = run_stats(capsys, "--input", "ACGT", "--format", "json")
+    assert by_flag == by_format
