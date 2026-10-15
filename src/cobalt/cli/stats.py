@@ -20,6 +20,7 @@ from cobalt.model.stats import STATS_FIELDNAMES, SortKey, StatsRow, build_stats_
 log = logging.getLogger(__name__)
 
 OUTPUT_FORMATS = ["csv", "json", "parquet"]
+FORMAT_BY_EXTENSION = {".csv": "csv", ".json": "json", ".parquet": "parquet", ".pq": "parquet"}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,13 +38,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument("--out", required=False, help="Output stats file path")
-    output_format = parser.add_mutually_exclusive_group()
-    output_format.add_argument(
+    format_group = parser.add_mutually_exclusive_group()
+    format_group.add_argument(
         "--format",
         choices=OUTPUT_FORMATS,
-        help="Output format (default: csv); parquet needs --out and the 'parquet' extra",
+        help="Output format (default: from the --out extension, else csv); "
+        "parquet needs --out and the 'parquet' extra",
     )
-    output_format.add_argument(
+    format_group.add_argument(
         "--json", dest="format", action="store_const", const="json", help="Same as --format json"
     )
     parser.add_argument(
@@ -53,6 +55,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--desc", action="store_true", help="Sort in descending order")
     return parser
+
+
+def output_format(format: str | None, out: str | None) -> str:
+    """Return the output format: `format` if given, else guessed from the `out` extension.
+
+    Falls back to csv for stdout and for unknown extensions.
+    """
+    if format is not None:
+        return format
+    if out is None:
+        return "csv"
+    return FORMAT_BY_EXTENSION.get(Path(out).suffix.lower(), "csv")
 
 
 def write_stats_csv(file: TextIO, rows: list[StatsRow]) -> None:
@@ -113,7 +127,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     In case of empty --out, input to stdout
     """
     args = build_parser().parse_args(argv)
-    output_type = args.format or "csv"
+    output_type = output_format(args.format, args.out)
+    log.debug("output format: %s", output_type)
     if output_type == "parquet" and not args.out:
         log.error("parquet output is binary and needs --out FILE")
         return 1

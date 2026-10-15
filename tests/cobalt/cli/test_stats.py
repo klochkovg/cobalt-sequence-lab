@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from cobalt.cli.main import main
+from cobalt.cli.stats import output_format
 from cobalt.model.stats import STATS_FIELDNAMES
 
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
@@ -159,3 +160,42 @@ def test_stats_format_json_same_as_json_flag(capsys):
     _, by_flag = run_stats(capsys, "--input", "ACGT", "--json")
     _, by_format = run_stats(capsys, "--input", "ACGT", "--format", "json")
     assert by_flag == by_format
+
+
+@pytest.mark.parametrize(
+    ("fmt", "out", "expected"),
+    [
+        (None, None, "csv"),
+        (None, "stats.csv", "csv"),
+        (None, "stats.JSON", "json"),
+        (None, "dir.v1/stats.parquet", "parquet"),
+        (None, "stats.pq", "parquet"),
+        (None, "stats.tsv", "csv"),
+        (None, "stats", "csv"),
+        ("csv", "stats.json", "csv"),
+    ],
+)
+def test_output_format(fmt, out, expected):
+    assert output_format(fmt, out) == expected
+
+
+def test_stats_out_json_extension_writes_json(capsys, tmp_path):
+    out = tmp_path / "stats.json"
+    exit_code, _ = run_stats(capsys, "--input", "ACGT", "--out", str(out))
+    assert exit_code == 0
+    assert json.loads(out.read_text())[0]["id"] == "direct_input"
+
+
+def test_stats_out_parquet_extension_writes_parquet(capsys, tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    out = tmp_path / "stats.parquet"
+    exit_code, _ = run_stats(capsys, "--input", "ACGT", "--out", str(out))
+    assert exit_code == 0
+    assert pq.read_table(out).num_rows == 1
+
+
+def test_stats_format_overrides_extension(capsys, tmp_path):
+    out = tmp_path / "stats.json"
+    exit_code, _ = run_stats(capsys, "--input", "ACGT", "--format", "csv", "--out", str(out))
+    assert exit_code == 0
+    assert out.read_text().startswith("id,length,")
