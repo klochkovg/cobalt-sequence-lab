@@ -2,6 +2,7 @@ import csv
 import gzip
 import io
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -199,3 +200,21 @@ def test_stats_format_overrides_extension(capsys, tmp_path):
     exit_code, _ = run_stats(capsys, "--input", "ACGT", "--format", "csv", "--out", str(out))
     assert exit_code == 0
     assert out.read_text().startswith("id,length,")
+
+
+@pytest.mark.parametrize("out", ["stats.tsv", "stats"])
+def test_output_format_warns_on_unknown_extension(caplog, out):
+    with caplog.at_level(logging.WARNING, logger="cobalt.cli.stats"):
+        assert output_format(None, out) == "csv"
+    assert "unrecognized extension" in caplog.text
+    assert out in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("fmt", "out"),
+    [(None, None), (None, "stats.csv"), (None, "stats.PQ"), ("json", "stats.tsv")],
+)
+def test_output_format_no_warning(caplog, fmt, out):
+    with caplog.at_level(logging.WARNING, logger="cobalt.cli.stats"):
+        output_format(fmt, out)
+    assert caplog.records == []

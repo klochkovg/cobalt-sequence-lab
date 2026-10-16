@@ -60,13 +60,21 @@ def build_parser() -> argparse.ArgumentParser:
 def output_format(format: str | None, out: str | None) -> str:
     """Return the output format: `format` if given, else guessed from the `out` extension.
 
-    Falls back to csv for stdout and for unknown extensions.
+    Falls back to csv for stdout and, with a warning, for unknown or missing extensions.
     """
     if format is not None:
         return format
     if out is None:
         return "csv"
-    return FORMAT_BY_EXTENSION.get(Path(out).suffix.lower(), "csv")
+    guessed = FORMAT_BY_EXTENSION.get(Path(out).suffix.lower())
+    if guessed is None:
+        log.warning(
+            "%s: unrecognized extension (expected %s), writing csv; use --format to choose",
+            out,
+            ", ".join(FORMAT_BY_EXTENSION),
+        )
+        return "csv"
+    return guessed
 
 
 def write_stats_csv(file: TextIO, rows: list[StatsRow]) -> None:
