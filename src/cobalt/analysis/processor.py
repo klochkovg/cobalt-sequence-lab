@@ -31,11 +31,6 @@ def calculate_gc_fraction(seq, molecule_type: str) -> float | None:
     return SeqUtils.gc_fraction(seq)
 
 
-VALID_DNA = set(IUPACData.ambiguous_dna_letters)
-VALID_RNA = set(IUPACData.ambiguous_rna_letters)
-VALID_PROTEIN = set(IUPACData.extended_protein_letters)
-
-
 def invalid_char_count(seq_record: SeqRecord, type: str) -> int:
     """Calculate and return number of invalid symbols for the particular sequence"""
     if seq_record.seq is None:
@@ -63,13 +58,9 @@ def calculate_alphabet_class(seq, molecule_type) -> str:
     if not seq_str:
         return "unknown"
 
-    alphabet = {
-        "DNA": VALID_DNA,
-        "RNA": VALID_RNA,
-        "protein": VALID_PROTEIN,
-    }.get(molecule_type)
-    if alphabet is None:
+    if molecule_type not in {"DNA", "RNA", "protein"}:
         return "unknown"
+    alphabet = valid_letters(molecule_type)
 
     ambiguity_letters = {
         "DNA": AMBIGUOUS_DNA,

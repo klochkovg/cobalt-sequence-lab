@@ -23,11 +23,15 @@ CORE_NUCLEOTIDES = set("ACGTUN")
 MIN_CORE_NUCLEOTIDE_FRACTION = 0.75
 
 
+# GenBank stores RNA molecules (mRNA, ncRNA, ...) with T, as their cDNA, so T is valid for RNA
+VALID_RNA_LETTERS = RNA_LETTERS | {"T"}
+
+
 def valid_letters(molecule_type: str) -> set[str]:
     """Return the letters valid for `molecule_type`; any IUPAC letter for an unknown type."""
     return {
         "DNA": DNA_LETTERS,
-        "RNA": RNA_LETTERS,
+        "RNA": VALID_RNA_LETTERS,
         "protein": PROTEIN_LETTERS,
     }.get(molecule_type, DNA_LETTERS | RNA_LETTERS | PROTEIN_LETTERS)
 

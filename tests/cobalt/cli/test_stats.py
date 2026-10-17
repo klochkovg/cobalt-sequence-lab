@@ -6,6 +6,9 @@ import logging
 from pathlib import Path
 
 import pytest
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 from cobalt.cli.main import main
 from cobalt.cli.stats import output_format
@@ -218,3 +221,18 @@ def test_output_format_no_warning(caplog, fmt, out):
     with caplog.at_level(logging.WARNING, logger="cobalt.cli.stats"):
         output_format(fmt, out)
     assert caplog.records == []
+
+
+def test_stats_genbank_mrna_has_no_invalid_chars(capsys, tmp_path):
+    path = tmp_path / "mrna.gb"
+    record = SeqRecord(
+        Seq("ATGGCTTGTACGTAA"), id="NM_1", name="NM_1", annotations={"molecule_type": "mRNA"}
+    )
+    SeqIO.write(record, path, "genbank")
+
+    exit_code, out = run_stats(capsys, str(path), "--json")
+    row = json.loads(out)[0]
+    assert exit_code == 0
+    assert row["type"] == "RNA"
+    assert row["invalid_char_count"] == 0
+    assert row["alphabetic_class"] == "unambiguous"

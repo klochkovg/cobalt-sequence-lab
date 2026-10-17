@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
+import sys
 from collections.abc import Callable, Sequence
 
 from cobalt import __version__
@@ -11,6 +13,9 @@ from cobalt.cli import help, inspect, normalize, stats, validate
 from cobalt.logging_config import configure_logging
 
 log = logging.getLogger(__name__)
+
+# Exit status of a process killed by SIGPIPE (128 + 13), as `cat` or `grep` report it
+EXIT_BROKEN_PIPE = 141
 
 
 def _serve_main(argv: Sequence[str] | None) -> int:
@@ -68,7 +73,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parsed = build_parser().parse_args(argv)
     configure_logging(parsed.verbose, parsed.quiet, server=parsed.command == "serve")
     handler = COMMAND_HANDLERS[parsed.command]
-    return int(handler(parsed.args))
+    try:
+        return int(handler(parsed.args))
+    except BrokenPipeError:
+        # The reader of stdout exited early (e.g. `cobalt stats big.fa | head`): stop quietly.
+        # stdout is pointed at devnull so the flush at interpreter exit doesn't fail again.
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        return EXIT_BROKEN_PIPE
 
 
 if __name__ == "__main__":

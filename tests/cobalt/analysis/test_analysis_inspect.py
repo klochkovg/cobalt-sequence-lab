@@ -80,11 +80,11 @@ def test_find_warnings_uses_molecule_type(sequence, molecule_type, expected):
 
 def test_process_records_warnings_follow_annotation():
     records = [
-        SeqRecord(Seq("ACGTACGT"), id="annotated", annotations={"molecule_type": "RNA"}),
+        SeqRecord(Seq("ACGUACGU"), id="annotated", annotations={"molecule_type": "DNA"}),
         SeqRecord(Seq("ACGUACGU"), id="guessed"),
     ]
     result = process_records(records, "genbank")
-    assert [str(warning) for warning in result.warnings] == ["annotated: invalid characters ['T']"]
+    assert [str(warning) for warning in result.warnings] == ["annotated: invalid characters ['U']"]
 
 
 def test_guess_molecule_type_dna():
@@ -160,7 +160,7 @@ def test_process_records_alphabet_class():
     records = [
         SeqRecord(Seq("ACGTACGT"), id="clean"),
         SeqRecord(Seq("ACGTRYACGT"), id="ambiguous"),
-        SeqRecord(Seq("ACGTACGT"), id="bad", annotations={"molecule_type": "RNA"}),
+        SeqRecord(Seq("ACGUACGU"), id="bad", annotations={"molecule_type": "DNA"}),
     ]
     result = process_records(records, "raw")
     classes = {record.id: record.alphabetic_class for record in result.records}
@@ -265,3 +265,33 @@ def test_load_file_parser_value_error(monkeypatch):
     with pytest.raises(InputFileError) as excinfo:
         load_file(DATA_DIR / "ls_orchid.fasta")
     assert str(excinfo.value).endswith("cannot parse as fasta: bad record")
+
+
+def annotated(seq: str, molecule_type: str) -> SeqRecord:
+    return SeqRecord(Seq(seq), id="r1", annotations={"molecule_type": molecule_type})
+
+
+def test_genbank_mrna_with_t_is_valid():
+    # GenBank stores mRNA with T, as its cDNA
+    result = process_records([annotated("ATGGCTTGTACGTAA", "mRNA")], "genbank")
+    record = result.records[0]
+    assert record.type == "RNA"
+    assert record.invalid_char_count == 0
+    assert record.alphabetic_class == "unambiguous"
+    assert result.warnings == []
+
+
+def test_rna_with_u_still_valid_and_other_letters_still_invalid():
+    record = process_records([annotated("AUGGCUUGA", "mRNA")], "genbank").records[0]
+    assert record.alphabetic_class == "unambiguous"
+
+    result = process_records([annotated("AUGXXUGA", "mRNA")], "genbank")
+    assert result.records[0].invalid_char_count == 2
+    assert result.records[0].alphabetic_class == "invalid"
+    assert [w.kind for w in result.warnings] == [WarningKind.INVALID_CHARACTERS]
+
+
+def test_dna_with_u_still_invalid():
+    record = process_records([annotated("ACGU", "DNA")], "genbank").records[0]
+    assert record.invalid_char_count == 1
+    assert record.alphabetic_class == "invalid"
