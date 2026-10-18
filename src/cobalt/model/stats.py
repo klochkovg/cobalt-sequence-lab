@@ -33,7 +33,8 @@ class StatsRow:
     """One row of the `stats` table, shared by the CSV and JSON output and the REST API.
 
     Field order is the column order. Annotation fields are None when the source
-    format has no such annotation (e.g. FASTA).
+    format has no such annotation (e.g. FASTA); computed fields are None for a record
+    with a length but no sequence content (GenBank WGS/CONTIG).
     """
 
     id: str
@@ -43,8 +44,8 @@ class StatsRow:
     type: str
     source_format: str
     alphabetic_class: str
-    ambiguity_fraction: float
-    invalid_char_count: int
+    ambiguity_fraction: float | None
+    invalid_char_count: int | None
     organism: str | None
     molecule_type: str | None
     topology: str | None

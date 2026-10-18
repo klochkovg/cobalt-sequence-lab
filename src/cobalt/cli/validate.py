@@ -24,7 +24,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--warnings",
         action="store_true",
-        help="Print only warnings (empty sequences, duplicate IDs, invalid characters) to stdout",
+        help="Print only warnings (empty or undefined sequences, duplicate IDs, "
+        "invalid characters) to stdout",
     )
     return parser
 

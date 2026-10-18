@@ -13,6 +13,7 @@ class WarningKind(StrEnum):
     DUPLICATE_ID = "duplicate_id"
     EMPTY_SEQUENCE = "empty_sequence"
     INVALID_CHARACTERS = "invalid_characters"
+    UNDEFINED_SEQUENCE = "undefined_sequence"
 
 
 @dataclass(frozen=True, slots=True)

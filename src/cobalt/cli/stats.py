@@ -154,10 +154,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not primary_result:
         source = "direct input" if args.raw_sequence is not None else args.input
         log.warning("%s: 0 records", source)
-        return 0
+    # An empty input still gets an empty table (CSV header, [] or a schema-only Parquet file),
+    # so the next step of a pipeline can read it
+    records = primary_result.records if primary_result else []
 
     sort = SortKey(args.sort) if args.sort else None
-    rows = build_stats_rows(primary_result.records, sort=sort, descending=args.desc)
+    rows = build_stats_rows(records, sort=sort, descending=args.desc)
     if args.out:
         try:
             if output_type == "parquet":

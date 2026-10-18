@@ -12,7 +12,8 @@ def uppercase_result(records: list[SequenceRecord]) -> list[SequenceRecord]:
     No data copying, actual replacement
     """
     for record in records:
-        record.sequence = record.sequence.upper()
+        if record.sequence is not None:
+            record.sequence = record.sequence.upper()
     return records
 
 

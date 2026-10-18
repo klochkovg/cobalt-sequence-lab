@@ -71,7 +71,9 @@ def test_inspect_summary_counts(capsys, tmp_path):
     out = capsys.readouterr().out
     assert exit_code == 0
     assert "molecule types: DNA=2, protein=1, unknown=1" in out
-    assert "warnings: 2 (duplicate_id=1, empty_sequence=0, invalid_characters=1)" in out
+    assert (
+        "warnings: 2 (duplicate_id=1, empty_sequence=0, invalid_characters=1, undefined_sequence=0)"
+    ) in out
     assert "s1: duplicate ID" in out
 
 
@@ -81,7 +83,9 @@ def test_inspect_summary_genbank(capsys):
     out = capsys.readouterr().out
     assert exit_code == 0
     assert "molecule types: DNA=94" in out
-    assert "warnings: 0 (duplicate_id=0, empty_sequence=0, invalid_characters=0)" in out
+    assert (
+        "warnings: 0 (duplicate_id=0, empty_sequence=0, invalid_characters=0, undefined_sequence=0)"
+    ) in out
 
 
 def test_inspect_prints_format(capsys):
@@ -144,7 +148,9 @@ def test_inspect_no_false_invalid_character_warnings(capsys, tmp_path):
 
     out = capsys.readouterr().out
     assert exit_code == 0
-    assert "warnings: 0 (duplicate_id=0, empty_sequence=0, invalid_characters=0)" in out
+    assert (
+        "warnings: 0 (duplicate_id=0, empty_sequence=0, invalid_characters=0, undefined_sequence=0)"
+    ) in out
 
 
 def test_inspect_fasta_listing_has_no_type_line(capsys, tmp_path):
@@ -203,3 +209,11 @@ def test_inspect_overview_only_skips_listing(capsys):
     assert exit_code == 0
     assert " length: min=" in out
     assert "Sequence name   :" not in out
+
+
+def test_inspect_length_only_record(capsys, length_only_genbank):
+    exit_code = main(["inspect", str(length_only_genbank)])
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "undefined_sequence=1" in out
+    assert "Sequence        : (undefined, length only)" in out

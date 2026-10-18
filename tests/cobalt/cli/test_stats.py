@@ -236,3 +236,64 @@ def test_stats_genbank_mrna_has_no_invalid_chars(capsys, tmp_path):
     assert row["type"] == "RNA"
     assert row["invalid_char_count"] == 0
     assert row["alphabetic_class"] == "unambiguous"
+
+
+def test_stats_length_only_record(capsys, length_only_genbank):
+    exit_code, out = run_stats(capsys, str(length_only_genbank))
+    rows = list(csv.DictReader(io.StringIO(out)))
+    assert exit_code == 0
+    assert [row["id"] for row in rows] == ["FULL1", "WGS1"]
+    wgs = rows[1]
+    assert wgs["length"] == "50"
+    assert wgs["gc_fraction"] == wgs["ambiguity_fraction"] == wgs["invalid_char_count"] == ""
+    assert wgs["description"] == "WGS master record"
+
+
+def test_stats_length_only_record_parquet(capsys, tmp_path, length_only_genbank):
+    pq = pytest.importorskip("pyarrow.parquet")
+    out = tmp_path / "stats.parquet"
+    exit_code, _ = run_stats(capsys, str(length_only_genbank), "--out", str(out))
+    wgs = pq.read_table(out).to_pylist()[1]
+    assert exit_code == 0
+    assert wgs["invalid_char_count"] is None
+    assert wgs["ambiguity_fraction"] is None
+
+
+def test_stats_raw_input_has_empty_description(capsys):
+    exit_code, out = run_stats(capsys, "--input", "ACGT", "--json")
+    assert exit_code == 0
+    assert json.loads(out)[0]["description"] == ""
+
+
+@pytest.fixture
+def empty_fasta(tmp_path):
+    path = tmp_path / "empty.fasta"
+    path.write_text("")
+    return path
+
+
+def test_stats_empty_file_csv_has_header(capsys, empty_fasta):
+    exit_code, out = run_stats(capsys, str(empty_fasta))
+    assert exit_code == 0
+    assert out == ",".join(STATS_FIELDNAMES) + "\r\n"
+
+
+def test_stats_empty_file_json_is_empty_list(capsys, empty_fasta):
+    exit_code, out = run_stats(capsys, str(empty_fasta), "--json")
+    assert exit_code == 0
+    assert json.loads(out) == []
+
+
+def test_stats_empty_file_parquet_has_schema(capsys, tmp_path, empty_fasta):
+    pq = pytest.importorskip("pyarrow.parquet")
+    out = tmp_path / "stats.parquet"
+    exit_code, _ = run_stats(capsys, str(empty_fasta), "--out", str(out))
+    table = pq.read_table(out)
+    assert exit_code == 0
+    assert table.num_rows == 0
+    assert table.schema.names == STATS_FIELDNAMES
+
+
+def test_stats_empty_file_warns(capsys, caplog, empty_fasta):
+    run_stats(capsys, str(empty_fasta))
+    assert "0 records" in caplog.text

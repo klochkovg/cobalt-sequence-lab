@@ -36,8 +36,16 @@ def valid_letters(molecule_type: str) -> set[str]:
     }.get(molecule_type, DNA_LETTERS | RNA_LETTERS | PROTEIN_LETTERS)
 
 
+def has_sequence(record: SeqRecord) -> bool:
+    """Return whether the record has sequence content, not just a length.
+
+    GenBank WGS/CONTIG records give a length but no bases; str() of such a Seq raises.
+    """
+    return record.seq is not None and record.seq.defined
+
+
 def find_warnings(records: list[SeqRecord], molecule_types: list[str]) -> list[RecordWarning]:
-    """Return warnings for empty sequences, duplicate IDs and invalid characters.
+    """Return warnings for empty or undefined sequences, duplicate IDs and invalid characters.
 
     `molecule_types` holds the molecule type of each record; characters are checked against
     the alphabet of that type (see valid_letters).
@@ -52,6 +60,15 @@ def find_warnings(records: list[SeqRecord], molecule_types: list[str]) -> list[R
         if record.seq is None or len(record.seq) == 0:
             warnings.append(RecordWarning(record_id, WarningKind.EMPTY_SEQUENCE, "empty sequence"))
         seen_ids.add(record.id)
+        if record.seq is not None and not record.seq.defined:
+            warnings.append(
+                RecordWarning(
+                    record_id,
+                    WarningKind.UNDEFINED_SEQUENCE,
+                    f"sequence content undefined ({len(record.seq)} bp, length only)",
+                )
+            )
+            continue
 
         bad_chars = set(str(record.seq).upper()) - valid_letters(molecule_type)
         if bad_chars:

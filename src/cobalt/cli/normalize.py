@@ -63,6 +63,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     records = uppercase_result(primary_result.records)
+    undefined = [record.id for record in records if record.sequence is None]
+    if undefined:
+        log.warning(
+            "skipping %d record(s) with no sequence content: %s",
+            len(undefined),
+            ", ".join(undefined),
+        )
     seq_records = [
         SeqRecord(
             Seq(record.sequence),
@@ -74,6 +81,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             annotations={"molecule_type": record.molecule_type or record.type},
         )
         for record in records
+        if record.sequence is not None
     ]
     if args.fasta and not write_records(args.fasta, seq_records, "fasta"):
         return 1

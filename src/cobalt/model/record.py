@@ -16,10 +16,11 @@ class SequenceRecord:
     id: str
     description: str
     length: int
-    sequence: str
+    # None, like the computed fields below, for a record with a length but no sequence content
+    sequence: str | None
     gc_fraction: float | None
-    ambiguity_fraction: float
-    invalid_char_count: int
+    ambiguity_fraction: float | None
+    invalid_char_count: int | None
     alphabetic_class: str
     source_format: str
     type: str
@@ -36,10 +37,14 @@ class SequenceRecord:
             id=data["id"],
             description=data["description"],
             length=int(data["length"]),
-            sequence=str(data["sequence"]),
+            sequence=None if data["sequence"] is None else str(data["sequence"]),
             gc_fraction=None if data["gc_fraction"] is None else float(data["gc_fraction"]),
-            ambiguity_fraction=float(data["ambiguity_fraction"]),
-            invalid_char_count=int(data["invalid_char_count"]),
+            ambiguity_fraction=(
+                None if data["ambiguity_fraction"] is None else float(data["ambiguity_fraction"])
+            ),
+            invalid_char_count=(
+                None if data["invalid_char_count"] is None else int(data["invalid_char_count"])
+            ),
             alphabetic_class=data["alphabetic_class"],
             source_format=data["source_format"],
             type=data["type"],

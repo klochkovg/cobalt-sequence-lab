@@ -11,7 +11,13 @@ from cobalt.analysis.inspect import (
     find_warnings,
     guess_molecule_type,
 )
-from cobalt.analysis.processor import InputFileError, load_file, process_records, read_file
+from cobalt.analysis.processor import (
+    InputFileError,
+    load_file,
+    process_records,
+    read_file,
+    record_description,
+)
 from cobalt.model.qc import WarningKind
 
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
@@ -203,6 +209,7 @@ def test_type_and_warning_counts():
         WarningKind.DUPLICATE_ID: 1,
         WarningKind.EMPTY_SEQUENCE: 1,
         WarningKind.INVALID_CHARACTERS: 0,
+        WarningKind.UNDEFINED_SEQUENCE: 0,
     }
 
 
@@ -295,3 +302,52 @@ def test_dna_with_u_still_invalid():
     record = process_records([annotated("ACGU", "DNA")], "genbank").records[0]
     assert record.invalid_char_count == 1
     assert record.alphabetic_class == "invalid"
+
+
+def test_length_only_record_has_empty_computed_fields(length_only_genbank):
+    result = load_file(length_only_genbank)
+
+    full, wgs = result.records
+    assert full.sequence == "ACGTACGTGG"
+    assert full.invalid_char_count == 0
+    assert wgs.length == 50
+    assert wgs.type == "DNA"  # from the annotation
+    assert wgs.sequence is None
+    assert wgs.gc_fraction is None
+    assert wgs.ambiguity_fraction is None
+    assert wgs.invalid_char_count is None
+    assert wgs.alphabetic_class == "unknown"
+    assert [str(w) for w in result.warnings] == [
+        "WGS1: sequence content undefined (50 bp, length only)"
+    ]
+    assert result.max == 50
+
+
+def test_length_only_record_without_annotation_is_unknown():
+    record = process_records([SeqRecord(Seq(None, length=7), id="u")], "raw").records[0]
+    assert record.type == "unknown"
+    assert record.sequence is None
+
+
+@pytest.mark.parametrize(
+    ("record_id", "description", "expected"),
+    [
+        ("p1", "p1 kinase", "kinase"),
+        ("p1", "p1\tkinase  domain", "kinase  domain"),
+        ("p1", "p1", ""),
+        ("p1", "<unknown description>", ""),
+        ("p1", "", ""),
+        ("NM_1", "Homo sapiens NM_1 mRNA", "Homo sapiens NM_1 mRNA"),
+        ("p1", "p10 other", "p10 other"),
+    ],
+)
+def test_record_description(record_id, description, expected):
+    seq_record = SeqRecord(Seq("ACGT"), id=record_id, description=description)
+    assert record_description(seq_record) == expected
+
+
+def test_fasta_description_without_id():
+    result = load_file(DATA_DIR / "ls_orchid.fasta")
+    first = result.records[0]
+    assert first.id == "gi|2765658|emb|Z78533.1|CIZ78533"
+    assert first.description == "C.irapeanum 5.8S rRNA gene and ITS1 and ITS2 DNA"

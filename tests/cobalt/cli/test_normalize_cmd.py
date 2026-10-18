@@ -130,3 +130,13 @@ def test_normalize_unrecognized_input(tmp_path, caplog):
     assert exit_code == 1
     assert "unrecognized format" in caplog.text
     assert not output_path.exists()
+
+
+def test_normalize_skips_length_only_records(tmp_path, caplog, length_only_genbank):
+    output_path = tmp_path / "out.fasta"
+
+    exit_code = main(["normalize", str(length_only_genbank), "--fasta", str(output_path)])
+
+    assert exit_code == 0
+    assert [record.id for record in SeqIO.parse(output_path, "fasta")] == ["FULL1"]
+    assert "skipping 1 record(s) with no sequence content: WGS1" in caplog.text

@@ -34,7 +34,8 @@ def print_file_results(path: Path, result: AnalysisResult) -> None:
 def print_record(record: SequenceRecord) -> None:
     print(f"Sequence name   : {record.id}")
     print(f"Sequence length : {record.length}")
-    print(f"Sequence        : {record.sequence}")
+    sequence = record.sequence if record.sequence is not None else "(undefined, length only)"
+    print(f"Sequence        : {sequence}")
     print(f"GC fraction     : {record.gc_fraction!r}")
     print(f"Type guess      : {record.type}")
     if record.molecule_type:

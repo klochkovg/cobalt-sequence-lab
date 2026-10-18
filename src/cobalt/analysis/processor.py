@@ -13,6 +13,7 @@ from cobalt.analysis.inspect import (
     canonical_molecule_type,
     find_warnings,
     guess_molecule_type,
+    has_sequence,
     valid_letters,
 )
 from cobalt.io.sniff import is_blank, open_text, sniff_compression, sniff_format
@@ -143,6 +144,25 @@ def annotation_str(seq_record: SeqRecord, key: str) -> str | None:
     return None if value is None else str(value)
 
 
+# Biopython's SeqRecord default when no description is given
+UNKNOWN_DESCRIPTION = "<unknown description>"
+
+
+def record_description(seq_record: SeqRecord) -> str:
+    """Return the description without Biopython's placeholder or a leading copy of the ID.
+
+    FASTA parsing puts the whole header line into the description, so `>p1 kinase` gives
+    "p1 kinase"; this returns "kinase".
+    """
+    description = seq_record.description
+    if description == UNKNOWN_DESCRIPTION:
+        return ""
+    first, *rest = description.split(maxsplit=1) or [""]
+    if first == seq_record.id:
+        return rest[0] if rest else ""
+    return description
+
+
 def process_records(records: list[SeqRecord], type: str) -> AnalysisResult | None:
     lengths = [len(record.seq) if record.seq is not None else 0 for record in records]
     if not lengths:
@@ -153,17 +173,25 @@ def process_records(records: list[SeqRecord], type: str) -> AnalysisResult | Non
     molecule_types = []
     for seq_record in records:
         molecule_type = annotation_str(seq_record, "molecule_type")
-        seq_type = canonical_molecule_type(molecule_type) or guess_molecule_type(seq_record.seq)
+        defined = has_sequence(seq_record)
+        seq_type = canonical_molecule_type(molecule_type) or (
+            guess_molecule_type(seq_record.seq) if defined else "unknown"
+        )
         molecule_types.append(seq_type)
         result = SequenceRecord(
             id=str(seq_record.id),
-            description=seq_record.description,
+            description=record_description(seq_record),
             length=len(seq_record),
-            sequence=str(seq_record.seq),
-            gc_fraction=calculate_gc_fraction(seq_record.seq, seq_type),
-            ambiguity_fraction=calculate_ambiguity_fraction(seq_record.seq, seq_type),
-            invalid_char_count=invalid_char_count(seq_record, seq_type),
-            alphabetic_class=calculate_alphabet_class(seq_record.seq, seq_type),
+            # Length-only records (GenBank WGS/CONTIG) have nothing to compute from
+            sequence=str(seq_record.seq) if defined else None,
+            gc_fraction=calculate_gc_fraction(seq_record.seq, seq_type) if defined else None,
+            ambiguity_fraction=(
+                calculate_ambiguity_fraction(seq_record.seq, seq_type) if defined else None
+            ),
+            invalid_char_count=invalid_char_count(seq_record, seq_type) if defined else None,
+            alphabetic_class=(
+                calculate_alphabet_class(seq_record.seq, seq_type) if defined else "unknown"
+            ),
             source_format=type,
             type=seq_type,
             organism=annotation_str(seq_record, "organism"),

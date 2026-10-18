@@ -180,3 +180,16 @@ def test_analysis_result_from_process_records(filename, fmt):
 
 def test_process_records_empty_returns_none():
     assert process_records([], "fasta") is None
+
+
+def test_sequence_record_from_dict_length_only():
+    record = SequenceRecord.from_dict(
+        make_record_dict(
+            sequence=None, gc_fraction=None, ambiguity_fraction=None, invalid_char_count=None
+        )
+    )
+
+    assert record.sequence is None
+    assert record.ambiguity_fraction is None
+    assert record.invalid_char_count is None
+    assert SequenceRecord.from_dict(record.to_dict()) == record
