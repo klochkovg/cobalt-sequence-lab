@@ -297,3 +297,67 @@ def test_stats_empty_file_parquet_has_schema(capsys, tmp_path, empty_fasta):
 def test_stats_empty_file_warns(capsys, caplog, empty_fasta):
     run_stats(capsys, str(empty_fasta))
     assert "0 records" in caplog.text
+
+
+FASTA = str(DATA_DIR / "ls_orchid.fasta")
+GENBANK = str(DATA_DIR / "ls_orchid.gbk")
+
+
+def test_stats_multiple_files_in_order(capsys):
+    exit_code, out = run_stats(capsys, FASTA, GENBANK, "--json")
+    rows = json.loads(out)
+    assert exit_code == 0
+    assert len(rows) == 94 + 94
+    assert {row["source_file"] for row in rows[:94]} == {FASTA}
+    assert {row["source_file"] for row in rows[94:]} == {GENBANK}
+    assert {row["source_format"] for row in rows[:94]} == {"fasta"}
+    assert {row["source_format"] for row in rows[94:]} == {"genbank"}
+
+
+def test_stats_multiple_files_sort_across_files(capsys):
+    exit_code, out = run_stats(capsys, FASTA, GENBANK, "--json", "--sort", "length")
+    lengths = [row["length"] for row in json.loads(out)]
+    assert exit_code == 0
+    assert lengths == sorted(lengths)
+    assert len(lengths) == 188
+
+
+def test_stats_multiple_files_missing_one_fails(capsys, caplog, tmp_path):
+    out_path = tmp_path / "stats.csv"
+    exit_code, out = run_stats(
+        capsys, FASTA, str(tmp_path / "missing.fasta"), GENBANK, "--out", str(out_path)
+    )
+    assert exit_code == 1
+    assert out == ""
+    assert not out_path.exists()
+    assert "file not found" in caplog.text
+
+
+def test_stats_multiple_files_empty_one_warns(capsys, caplog, empty_fasta):
+    exit_code, out = run_stats(capsys, FASTA, str(empty_fasta), "--json")
+    assert exit_code == 0
+    assert len(json.loads(out)) == 94
+    assert f"{empty_fasta}: 0 records" in caplog.text
+
+
+def test_stats_direct_input_has_no_source_file(capsys):
+    exit_code, out = run_stats(capsys, "--input", "ACGT", "--json")
+    assert exit_code == 0
+    assert json.loads(out)[0]["source_file"] is None
+
+
+def test_stats_file_and_direct_input_are_exclusive(capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(["stats", FASTA, "--input", "ACGT"])
+    assert exc.value.code == 2
+
+
+def test_stats_multiple_files_parquet_matches_json(capsys, tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    out = tmp_path / "stats.parquet"
+
+    exit_code, _ = run_stats(capsys, FASTA, GENBANK, "--out", str(out))
+    _, json_out = run_stats(capsys, FASTA, GENBANK, "--json")
+
+    assert exit_code == 0
+    assert pq.read_table(out).to_pylist() == json.loads(json_out)

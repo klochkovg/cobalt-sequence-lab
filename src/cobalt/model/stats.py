@@ -34,7 +34,8 @@ class StatsRow:
 
     Field order is the column order. Annotation fields are None when the source
     format has no such annotation (e.g. FASTA); computed fields are None for a record
-    with a length but no sequence content (GenBank WGS/CONTIG).
+    with a length but no sequence content (GenBank WGS/CONTIG); source_file is None
+    for direct input.
     """
 
     id: str
@@ -43,6 +44,7 @@ class StatsRow:
     gc_fraction: float | None
     type: str
     source_format: str
+    source_file: str | None
     alphabetic_class: str
     ambiguity_fraction: float | None
     invalid_char_count: int | None
@@ -61,6 +63,7 @@ class StatsRow:
             gc_fraction=record.gc_fraction,
             type=record.type,
             source_format=record.source_format,
+            source_file=record.source_file,
             alphabetic_class=record.alphabetic_class,
             ambiguity_fraction=record.ambiguity_fraction,
             invalid_char_count=record.invalid_char_count,

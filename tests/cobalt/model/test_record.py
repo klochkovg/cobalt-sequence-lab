@@ -114,7 +114,8 @@ def test_sequence_record_to_dict():
     assert data["sequence"] == "ACGTNA"
     assert data["invalid_char_count"] == 0
     assert data["quality"] is None
-    assert set(data) == set(make_record_dict()) | {"quality"}
+    assert data["source_file"] is None
+    assert set(data) == set(make_record_dict()) | {"quality", "source_file"}
 
 
 def test_sequence_record_round_trip():

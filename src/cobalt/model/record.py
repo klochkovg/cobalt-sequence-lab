@@ -29,6 +29,8 @@ class SequenceRecord:
     molecule_type: str | None = None
     topology: str | None = None
     quality: str | None = None
+    # Path of the input file the record was read from; None for direct input
+    source_file: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SequenceRecord:
@@ -53,6 +55,7 @@ class SequenceRecord:
             molecule_type=data.get("molecule_type"),
             topology=data.get("topology"),
             quality=data.get("quality"),
+            source_file=data.get("source_file"),
         )
 
     def to_dict(self) -> dict[str, Any]:

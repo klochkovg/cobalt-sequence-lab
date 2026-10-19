@@ -15,6 +15,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 from cobalt.analysis.processor import InputFileError, load_file, process_records
+from cobalt.model.record import SequenceRecord
 from cobalt.model.stats import STATS_FIELDNAMES, SortKey, StatsRow, build_stats_rows
 
 log = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cobalt stats")
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument(
-        "input", nargs="?", default=None, help="Input FASTA/GenBank file (plain, gzip or bzip2)"
+        "input", nargs="*", help="Input FASTA/GenBank file(s) (plain, gzip or bzip2)"
     )
     source.add_argument(
         "--input",
@@ -107,6 +108,7 @@ def write_stats_parquet(path: str, rows: list[StatsRow]) -> None:
             ("gc_fraction", pa.float64()),
             ("type", pa.string()),
             ("source_format", pa.string()),
+            ("source_file", pa.string()),
             ("alphabetic_class", pa.string()),
             ("ambiguity_fraction", pa.float64()),
             ("invalid_char_count", pa.int64()),
@@ -141,22 +143,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         log.error("parquet output is binary and needs --out FILE")
         return 1
 
+    # An empty input still gets an empty table (CSV header, [] or a schema-only Parquet file),
+    # so the next step of a pipeline can read it
+    records: list[SequenceRecord] = []
     if args.raw_sequence is not None:
         record = SeqRecord(Seq(args.raw_sequence), id="direct_input")
         primary_result = process_records([record], "raw")
+        if primary_result is None:
+            log.warning("direct input: 0 records")
+        else:
+            records.extend(primary_result.records)
     else:
-        try:
-            primary_result = load_file(Path(args.input))
-        except InputFileError as exc:
-            log.error("%s", exc)
-            return 1
-
-    if not primary_result:
-        source = "direct input" if args.raw_sequence is not None else args.input
-        log.warning("%s: 0 records", source)
-    # An empty input still gets an empty table (CSV header, [] or a schema-only Parquet file),
-    # so the next step of a pipeline can read it
-    records = primary_result.records if primary_result else []
+        # Any unreadable file fails the whole run before output is written
+        for input_path in args.input:
+            try:
+                file_result = load_file(Path(input_path))
+            except InputFileError as exc:
+                log.error("%s", exc)
+                return 1
+            if file_result is None:
+                log.warning("%s: 0 records", input_path)
+            else:
+                records.extend(file_result.records)
 
     sort = SortKey(args.sort) if args.sort else None
     rows = build_stats_rows(records, sort=sort, descending=args.desc)

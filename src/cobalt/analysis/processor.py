@@ -132,10 +132,14 @@ def load_file(path: Path) -> AnalysisResult | None:
         )
     log.debug("%s: format=%s, compression=%s", path, fmt, sniff_compression(path))
     try:
-        return read_file(path, fmt)
+        result = read_file(path, fmt)
     except (ValueError, EOFError, OSError) as exc:
         message = str(exc).strip().splitlines()[0] if str(exc).strip() else type(exc).__name__
         raise InputFileError(f"{path}: cannot parse as {fmt}: {message}") from exc
+    if result is not None:
+        for record in result.records:
+            record.source_file = str(path)
+    return result
 
 
 def annotation_str(seq_record: SeqRecord, key: str) -> str | None:
