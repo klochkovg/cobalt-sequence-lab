@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 NUCLEOTIDE_TYPES = {"DNA", "RNA"}
 
 
-def calculate_gc_fraction(seq, molecule_type: str) -> float | None:
+def calculate_gc_fraction(seq: str, molecule_type: str) -> float | None:
     """Return the GC fraction of a nucleotide sequence, None for other molecule types."""
     if molecule_type not in NUCLEOTIDE_TYPES:
         return None
@@ -46,7 +46,7 @@ AMBIGUOUS_RNA = set(IUPACData.ambiguous_rna_letters) - set(IUPACData.unambiguous
 AMBIGUOUS_PROTEIN = set(IUPACData.extended_protein_letters) - set(IUPACData.protein_letters)
 
 
-def calculate_alphabet_class(seq, molecule_type) -> str:
+def calculate_alphabet_class(seq: str, molecule_type: str) -> str:
     """Classify the sequence's alphabet relative to the IUPAC letter tiers.
 
     Returns "unambiguous" if every letter is in the strict (non-ambiguity-code)
@@ -77,7 +77,8 @@ def calculate_alphabet_class(seq, molecule_type) -> str:
     return "unambiguous"
 
 
-def calculate_ambiguity_fraction(seq, molecule_type):
+def calculate_ambiguity_fraction(seq: str, molecule_type: str) -> float:
+    """Return the share of IUPAC ambiguity codes in `seq`; 0.0 for an empty sequence."""
     seq_str = str(seq).upper()
     if not seq_str:
         return 0.0
@@ -178,6 +179,8 @@ def process_records(records: list[SeqRecord], type: str) -> AnalysisResult | Non
     for seq_record in records:
         molecule_type = annotation_str(seq_record, "molecule_type")
         defined = has_sequence(seq_record)
+        # Length-only records (GenBank WGS/CONTIG) have nothing to compute from
+        sequence = str(seq_record.seq) if defined else None
         seq_type = canonical_molecule_type(molecule_type) or (
             guess_molecule_type(seq_record.seq) if defined else "unknown"
         )
@@ -186,15 +189,16 @@ def process_records(records: list[SeqRecord], type: str) -> AnalysisResult | Non
             id=str(seq_record.id),
             description=record_description(seq_record),
             length=len(seq_record),
-            # Length-only records (GenBank WGS/CONTIG) have nothing to compute from
-            sequence=str(seq_record.seq) if defined else None,
-            gc_fraction=calculate_gc_fraction(seq_record.seq, seq_type) if defined else None,
+            sequence=sequence,
+            gc_fraction=(
+                calculate_gc_fraction(sequence, seq_type) if sequence is not None else None
+            ),
             ambiguity_fraction=(
-                calculate_ambiguity_fraction(seq_record.seq, seq_type) if defined else None
+                calculate_ambiguity_fraction(sequence, seq_type) if sequence is not None else None
             ),
             invalid_char_count=invalid_char_count(seq_record, seq_type) if defined else None,
             alphabetic_class=(
-                calculate_alphabet_class(seq_record.seq, seq_type) if defined else "unknown"
+                calculate_alphabet_class(sequence, seq_type) if sequence is not None else "unknown"
             ),
             source_format=type,
             type=seq_type,
