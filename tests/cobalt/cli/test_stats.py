@@ -361,3 +361,11 @@ def test_stats_multiple_files_parquet_matches_json(capsys, tmp_path):
 
     assert exit_code == 0
     assert pq.read_table(out).to_pylist() == json.loads(json_out)
+
+
+@pytest.mark.parametrize("column", ["gc_fraction", "ambiguity_fraction", "invalid_char_count"])
+def test_stats_sort_by_computed_column(capsys, column):
+    exit_code, out = run_stats(capsys, FASTA, "--sort", column, "--desc", "--json")
+    values = [row[column] for row in json.loads(out)]
+    assert exit_code == 0
+    assert values == sorted(values, reverse=True)

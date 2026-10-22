@@ -93,6 +93,7 @@ conda create -n biolab-dev -c conda-forge \
 ```bash
 cobalt inspect input.gb
 cobalt stats input.fasta --out stats.csv
+cobalt stats input.fasta --sort gc_fraction --desc   # also: id, length, ambiguity_fraction, invalid_char_count
 cobalt stats a.fasta b.gb.gz --out stats.csv   # several files, one table; source_file column says which
 cobalt stats input.gb --out stats.parquet   # format from extension: .csv, .json, .parquet/.pq
 cobalt stats input.gb --format json --out stats.txt   # --format overrides the extension

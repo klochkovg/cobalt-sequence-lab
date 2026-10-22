@@ -86,6 +86,9 @@ class SortKey(Enum):
 
     ID = "id"
     LENGTH = "length"
+    GC_FRACTION = "gc_fraction"
+    AMBIGUITY_FRACTION = "ambiguity_fraction"
+    INVALID_CHAR_COUNT = "invalid_char_count"
 
 
 def build_stats_rows(
@@ -93,8 +96,15 @@ def build_stats_rows(
     sort: SortKey | None = None,
     descending: bool = False,
 ) -> list[StatsRow]:
-    """Build stats rows, in input order unless `sort` is given (the sort is stable)."""
+    """Build stats rows, in input order unless `sort` is given (the sort is stable).
+
+    Rows whose sort value is None (e.g. gc_fraction of a protein) go last in either
+    direction, in input order.
+    """
     rows = [StatsRow.from_record(record) for record in records]
-    if sort is not None:
-        rows.sort(key=lambda row: getattr(row, sort.value), reverse=descending)
-    return rows
+    if sort is None:
+        return rows
+    present = [row for row in rows if getattr(row, sort.value) is not None]
+    missing = [row for row in rows if getattr(row, sort.value) is None]
+    present.sort(key=lambda row: getattr(row, sort.value), reverse=descending)
+    return present + missing

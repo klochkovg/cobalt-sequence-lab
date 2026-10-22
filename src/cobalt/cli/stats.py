@@ -52,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--sort",
         choices=[key.value for key in SortKey],
-        help="Sort rows by this column (default: input order)",
+        help="Sort rows by this column (default: input order); empty values go last",
     )
     parser.add_argument("--desc", action="store_true", help="Sort in descending order")
     return parser
