@@ -119,12 +119,12 @@ once, in `cobalt.cli.main`, by `cobalt.logging_config.configure_logging`.
 
 ## Controls
 
-| Control | Effect |
-|---|---|
-| `-v` / `-vv` | info / debug level |
-| `-q` | errors only |
-| `COBALT_LOG_LEVEL=DEBUG\|INFO\|WARNING\|ERROR` | level when no `-v`/`-q` is given |
-| `COBALT_LOG_FORMAT=auto\|rich\|plain` | `auto` (default): rich on a terminal, plain text otherwise |
+| Control                                        | Effect                                                     |
+| ---------------------------------------------- | ---------------------------------------------------------- |
+| `-v` / `-vv`                                   | info / debug level                                         |
+| `-q`                                           | errors only                                                |
+| `COBALT_LOG_LEVEL=DEBUG\|INFO\|WARNING\|ERROR` | level when no `-v`/`-q` is given                           |
+| `COBALT_LOG_FORMAT=auto\|rich\|plain`          | `auto` (default): rich on a terminal, plain text otherwise |
 
 Global flags go **before** the command: `cobalt -v stats input.fasta`, not `cobalt stats input.fasta -v`.
 
@@ -186,9 +186,8 @@ pip install -e .
 
 # Some known problems
 
-- lack of tests
 - lack of precommit hooks for linter and tests
-- lack of API implementation, though some infrastructure is already created
+- further integration with pipelines (or implementation of pipeline logic)
 
 # Some future plans
 
