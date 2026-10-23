@@ -1,6 +1,6 @@
 # Cobalt Sequence Lab
 
-The main goal of this project, is experimenting with biopython and some
+The main goal of this project is experimenting with biopython and some
 tooling necessary for bioinformatics tasks.
 
 # Plans for future
@@ -15,7 +15,7 @@ Integration of pytest + ruff + mypy config. Inspect command fully functional. Un
 # Definition of DONE (preliminary stage)
 
 - Installable Python package
-- CLI with inpsect, stats, validate, normalize
+- CLI with inspect, stats, validate, normalize
 - support for FASTA and GenBank
 - tests for both formats
 - one example dataset folder
@@ -55,7 +55,7 @@ conda create -n biolab-dev -c conda-forge \
    - guessed molecule types
    - min/max/mean length
    - formats detected
-   - warning couts
+   - warning counts
 2. Stats command, emit a table with one row per record
    - ID
    - description
@@ -193,7 +193,7 @@ pip install -e .
 
 - Definition of Done fulfilled
 - Use of main common data sources
-- Rework of data model, extensive use of dicitonaries is ugly
+- Rework of data model, extensive use of dictionaries is ugly
 - Introduction of some forms of job/task model
 - Introduction of some kind of pipelining model to run batches of data
 - Integration with Nextflow
