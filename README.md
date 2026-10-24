@@ -193,12 +193,33 @@ pip install -e .
 
 # Some future plans
 
-- Definition of Done fulfilled
 - Use of main common data sources
-- Rework of data model, extensive use of dictionaries is ugly
 - Introduction of some forms of job/task model
+- Introduction of pipeline and job models
 - Introduction of some kind of pipelining model to run batches of data
 - Integration with Nextflow
+- Wider range of input formats (see below)
+- Less dependence on Biopython in the long term (see below)
+
+## Input formats
+
+Today the input formats are FASTA and GenBank, plain or gzip/bzip2 compressed. Formats are
+detected from the content (`cobalt.io.sniff`), so each new format needs a detection rule as well
+as a reader. Planned additions, mostly as input, in rough order of priority:
+
+1. FASTQ (`@` first): raw sequencing reads and the main input of Nextflow pipelines.
+2. EMBL (`ID   ... BP.`): the same content as GenBank in different syntax
+3. Multiple sequence alignments: Clustal (`CLUSTAL`), Stockholm (`# STOCKHOLM 1.0`), PHYLIP
+4. UniProt/SwissProt flat files (`ID   ... AA.`): protein records with annotations.
+5. ABI/AB1 Sanger traces (binary, `ABIF` magic) and SnapGene `.dna` (binary)
+6. PDB/mmCIF: extract chain sequences from structure files (`pdb-seqres`, `cif-seqres` in
+   Biopython). Structure analysis itself stays out of scope for now, but not for the future.
+7. VCF
+8. Lower priority: GFF3 annotations (often with embedded FASTA), 2bit genomes
+
+## Less dependence on Biopython
+
+Biopython is the reason for the project and stays the reference implementation, but in the long
 
 ## Authentication for `serve` (microservice deployment)
 
