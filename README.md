@@ -103,6 +103,8 @@ cobalt validate input.fasta --report qc.json
 cobalt serve
 cobalt serve --cors                         # allow any origin (UI development)
 cobalt serve --cors http://localhost:5173   # allow specific origin(s)
+COBALT_API_KEYS=key1,key2 cobalt serve --host 0.0.0.0 --auth api-key   # require X-API-Key
+cobalt serve --host 0.0.0.0 --allow-no-auth   # no auth: a gateway or service mesh handles it
 ```
 
 # Logging
@@ -197,3 +199,29 @@ pip install -e .
 - Introduction of some forms of job/task model
 - Introduction of some kind of pipelining model to run batches of data
 - Integration with Nextflow
+
+## Authentication for `serve` (microservice deployment)
+
+The goal is to run `cobalt serve` as one service in a microservice system, so authentication is
+pluggable and selected with `--auth`. Each mode is a FastAPI dependency attached to the router
+with the processing endpoints (`/stats`, `/inspect`, `/validate`, `/normalize`); `GET /` stays
+public for version info and liveness probes. Secrets come only from environment variables, never
+from command-line arguments (those are visible in `ps`).
+
+Modes:
+
+- `none` (default): for local development. Refused on a non-loopback `--host` unless
+  `--allow-no-auth` is given, for deployments where a gateway or service mesh authenticates.
+- `api-key` (implemented): callers send an `X-API-Key` header; valid keys are read from
+  `COBALT_API_KEYS` (comma-separated, so keys can be rotated by running with old and new keys).
+  Fine for an early stage and a few internal callers, but there is no caller identity or
+  per-endpoint permission.
+- `jwt` (planned): OAuth2/OIDC bearer tokens from an identity provider (Keycloak, Auth0, Entra ID,
+  Cognito), checked locally against the provider's JWKS with `COBALT_JWT_ISSUER`,
+  `COBALT_JWT_AUDIENCE` and `COBALT_JWKS_URL`. Per-endpoint scopes such as `cobalt:stats`;
+  other services get tokens with the client-credentials flow, user requests pass the user's
+  token along.
+
+Deployment path: `api-key` now → `jwt` once an identity provider exists → a service mesh
+(Istio, Linkerd) providing mTLS between services, with the JWT saying who is calling and what
+they may do.
