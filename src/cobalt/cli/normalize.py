@@ -12,7 +12,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 from cobalt.analysis.normalize import genbank_locus_name, uppercase_result
-from cobalt.analysis.processor import InputFileError, load_file
+from cobalt.analysis.processor import InputFileError, decode_quality, load_file
 
 log = logging.getLogger(__name__)
 
@@ -20,9 +20,12 @@ log = logging.getLogger(__name__)
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for normalize command."""
     parser = argparse.ArgumentParser(prog="cobalt normalize")
-    parser.add_argument("input", help="Input FASTA/GenBank file (plain, gzip or bzip2)")
+    parser.add_argument("input", help="Input FASTA/GenBank/FASTQ file (plain, gzip or bzip2)")
     parser.add_argument("--fasta", help="Output cleaned FASTA path")
     parser.add_argument("--genbank", help="Output cleaned GenBank path")
+    parser.add_argument(
+        "--fastq", help="Output cleaned FASTQ path (only records with qualities, from FASTQ input)"
+    )
     return parser
 
 
@@ -44,12 +47,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the normalize command.
 
     Reads the input file, uppercases every sequence and writes the result
-    as FASTA and/or GenBank.
+    as FASTA, GenBank and/or FASTQ.
     """
     parser = build_parser()
     args = parser.parse_args(argv)
-    if not args.fasta and not args.genbank:
-        parser.error("at least one of --fasta or --genbank is required")
+    if not args.fasta and not args.genbank and not args.fastq:
+        parser.error("at least one of --fasta, --genbank or --fastq is required")
 
     data_file_path = Path(args.input)
     try:
@@ -79,6 +82,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             description=record.description,
             # GenBank output requires molecule_type; FASTA ignores it
             annotations={"molecule_type": record.molecule_type or record.type},
+            # FASTQ output requires phred_quality; FASTA and GenBank ignore it
+            letter_annotations=(
+                {"phred_quality": decode_quality(record.quality)}
+                if record.quality is not None
+                else None
+            ),
         )
         for record in records
         if record.sequence is not None
@@ -90,6 +99,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         if shortened:
             log.info("%d ID(s) too long for GenBank LOCUS, shortened to accessions", shortened)
         if not write_records(args.genbank, seq_records, "genbank"):
+            return 1
+    if args.fastq:
+        with_quality = [r for r in seq_records if "phred_quality" in r.letter_annotations]
+        no_quality = [
+            record.id
+            for record in records
+            if record.sequence is not None and record.quality is None
+        ]
+        if no_quality:
+            log.warning(
+                "skipping %d record(s) with no qualities for FASTQ: %s",
+                len(no_quality),
+                ", ".join(no_quality),
+            )
+        if not write_records(args.fastq, with_quality, "fastq"):
             return 1
     return 0
 

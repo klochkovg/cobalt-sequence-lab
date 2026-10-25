@@ -37,6 +37,11 @@ def print_record(record: SequenceRecord) -> None:
     sequence = record.sequence if record.sequence is not None else "(undefined, length only)"
     print(f"Sequence        : {sequence}")
     print(f"GC fraction     : {record.gc_fraction!r}")
+    if record.mean_quality is not None and record.q30_fraction is not None:
+        print(
+            f"Quality         : mean={record.mean_quality:.1f}  min={record.min_quality}  "
+            f"Q30={record.q30_fraction:.1%}"
+        )
     print(f"Type guess      : {record.type}")
     if record.molecule_type:
         print(f"Type            : {record.molecule_type}")
@@ -60,7 +65,7 @@ def non_negative_int(value: str) -> int:
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for inspect command."""
     parser = argparse.ArgumentParser(prog="cobalt inspect")
-    parser.add_argument("input", help="Input FASTA/GenBank file (plain, gzip or bzip2)")
+    parser.add_argument("input", help="Input FASTA/GenBank/FASTQ file (plain, gzip or bzip2)")
     parser.add_argument(
         "--overview-only",
         action="store_true",

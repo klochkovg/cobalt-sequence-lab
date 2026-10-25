@@ -10,10 +10,10 @@ from collections.abc import Sequence
 log = logging.getLogger(__name__)
 
 COMMAND_DESCRIPTIONS: dict[str, str] = {
-    "inspect": "Summarize a FASTA/GenBank file: record count, lengths, types, warnings",
+    "inspect": "Summarize a FASTA/GenBank/FASTQ file: record count, lengths, types, warnings",
     "stats": "Emit a per-record stats table (CSV, JSON or Parquet) for a file or a raw sequence",
     "validate": "Check records for problems (empty sequences, duplicate IDs, invalid chars)",
-    "normalize": "Write cleaned (uppercased) records as FASTA and/or GenBank",
+    "normalize": "Write cleaned (uppercased) records as FASTA, GenBank and/or FASTQ",
     "serve": "Run the REST API server (needs the optional 'serve' dependencies)",
     "help": "Show this message, or detailed help for a command",
 }

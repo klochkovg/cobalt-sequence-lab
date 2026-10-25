@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 
 from Bio import SeqIO, SeqUtils
@@ -30,6 +31,29 @@ def calculate_gc_fraction(seq: str, molecule_type: str) -> float | None:
     if molecule_type not in NUCLEOTIDE_TYPES:
         return None
     return SeqUtils.gc_fraction(seq)
+
+
+# Phred score threshold of the q30_fraction column (1 error in 1000 bases)
+Q30 = 30
+# Offset of the Sanger FASTQ quality encoding (Phred+33)
+PHRED_OFFSET = 33
+
+
+def quality_stats(phred: Sequence[int]) -> tuple[float, int, float] | None:
+    """Return (mean, min, share of bases >= Q30) of Phred scores; None for an empty list."""
+    if not phred:
+        return None
+    return sum(phred) / len(phred), min(phred), sum(1 for q in phred if q >= Q30) / len(phred)
+
+
+def encode_quality(phred: Sequence[int]) -> str:
+    """Encode Phred scores as a Sanger FASTQ (Phred+33) quality string."""
+    return "".join(chr(q + PHRED_OFFSET) for q in phred)
+
+
+def decode_quality(quality: str) -> list[int]:
+    """Decode a Sanger FASTQ (Phred+33) quality string to Phred scores."""
+    return [ord(c) - PHRED_OFFSET for c in quality]
 
 
 def invalid_char_count(seq_record: SeqRecord, type: str) -> int:
@@ -113,7 +137,7 @@ class InputFileError(Exception):
 def load_file(path: Path) -> AnalysisResult | None:
     """Detect the format of `path` from its content and read it.
 
-    Plain, gzip and bzip2 files are supported. Returns None for an empty file and raises
+    FASTA, GenBank and FASTQ; plain, gzip and bzip2 files are supported. Returns None for an empty file and raises
     InputFileError if the file is missing, unrecognized or can't be parsed.
     """
     if not path.is_file():
@@ -128,8 +152,8 @@ def load_file(path: Path) -> AnalysisResult | None:
             log.debug("%s: empty file", path)
             return None
         raise InputFileError(
-            f"{path}: unrecognized format, expected FASTA (starts with '>') "
-            "or GenBank (starts with 'LOCUS')"
+            f"{path}: unrecognized format, expected FASTA (starts with '>'), "
+            "GenBank (starts with 'LOCUS') or FASTQ (starts with '@')"
         )
     log.debug("%s: format=%s, compression=%s", path, fmt, sniff_compression(path))
     try:
@@ -185,6 +209,8 @@ def process_records(records: list[SeqRecord], type: str) -> AnalysisResult | Non
             guess_molecule_type(seq_record.seq) if defined else "unknown"
         )
         molecule_types.append(seq_type)
+        phred = seq_record.letter_annotations.get("phred_quality")
+        stats = quality_stats(phred) if phred is not None else None
         result = SequenceRecord(
             id=str(seq_record.id),
             description=record_description(seq_record),
@@ -206,6 +232,10 @@ def process_records(records: list[SeqRecord], type: str) -> AnalysisResult | Non
             molecule_type=molecule_type,
             topology=annotation_str(seq_record, "topology"),
             feature_count=len(seq_record.features),
+            quality=encode_quality(phred) if phred is not None else None,
+            mean_quality=stats[0] if stats else None,
+            min_quality=stats[1] if stats else None,
+            q30_fraction=stats[2] if stats else None,
         )
         result_array.append(result)
 

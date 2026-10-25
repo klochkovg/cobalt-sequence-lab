@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for validate command."""
     parser = argparse.ArgumentParser(prog="cobalt validate")
-    parser.add_argument("input", help="Input FASTA/GenBank file (plain, gzip or bzip2)")
+    parser.add_argument("input", help="Input FASTA/GenBank/FASTQ file (plain, gzip or bzip2)")
     parser.add_argument("--report", required=False, help="JSON report output path")
     parser.add_argument(
         "--warnings",

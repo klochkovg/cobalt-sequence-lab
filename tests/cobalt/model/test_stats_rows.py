@@ -87,3 +87,20 @@ def test_sort_length_only_record_goes_last(length_only_genbank):
         for descending in (False, True):
             rows = build_stats_rows(result.records, sort=key, descending=descending)
             assert ids(rows)[-1] == "WGS1"
+
+
+def test_quality_columns_follow_feature_count():
+    assert STATS_FIELDNAMES[-4:] == ["feature_count", "mean_quality", "min_quality", "q30_fraction"]
+
+
+def test_sort_by_mean_quality_puts_none_last():
+    fastq = [
+        SeqRecord(Seq("ACGT"), id="low", letter_annotations={"phred_quality": [10, 10, 10, 10]}),
+        SeqRecord(Seq("ACGT"), id="high", letter_annotations={"phred_quality": [40, 40, 40, 40]}),
+    ]
+    sample = process_records(fastq, "fastq").records + records(("none", "ACGT"))
+
+    rows = build_stats_rows(sample, sort=SortKey.MEAN_QUALITY)
+    assert ids(rows) == ["low", "high", "none"]
+    rows = build_stats_rows(sample, sort=SortKey.MEAN_QUALITY, descending=True)
+    assert ids(rows) == ["high", "low", "none"]

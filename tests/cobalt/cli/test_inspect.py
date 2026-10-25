@@ -217,3 +217,21 @@ def test_inspect_length_only_record(capsys, length_only_genbank):
     assert exit_code == 0
     assert "undefined_sequence=1" in out
     assert "Sequence        : (undefined, length only)" in out
+
+
+def test_inspect_fastq(capsys):
+    exit_code = main(["inspect", str(DATA_DIR / "sample.fastq")])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "4 record(s)" in captured.out
+    assert "format: fastq" in captured.out
+    assert "Quality         : mean=40.0  min=40  Q30=100.0%" in captured.out
+    assert "Quality         : mean=26.2  min=20  Q30=62.5%" in captured.out
+
+
+def test_inspect_fasta_has_no_quality_line(capsys):
+    exit_code = main(["inspect", "--output-seq-number", "2", str(DATA_DIR / "ls_orchid.fasta")])
+
+    assert exit_code == 0
+    assert "Quality" not in capsys.readouterr().out

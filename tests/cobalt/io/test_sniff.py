@@ -10,6 +10,7 @@ from cobalt.io.sniff import is_blank, is_supported, open_text, sniff_compression
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
 FASTA = DATA_DIR / "ls_orchid.fasta"
 GENBANK = DATA_DIR / "ls_orchid.gbk"
+FASTQ = DATA_DIR / "sample.fastq"
 
 COMPRESSORS = {"gzip": gzip.compress, "bzip2": bz2.compress}
 
@@ -22,14 +23,21 @@ def write(tmp_path: Path, name: str, content: bytes) -> Path:
 
 @pytest.mark.parametrize(
     ("path", "expected"),
-    [(FASTA, "fasta"), (GENBANK, "genbank"), (DATA_DIR / "text_input.txt", None)],
+    [
+        (FASTA, "fasta"),
+        (GENBANK, "genbank"),
+        (FASTQ, "fastq"),
+        (DATA_DIR / "text_input.txt", None),
+    ],
 )
 def test_sniff_format_test_data(path, expected):
     assert sniff_format(path) == expected
 
 
 @pytest.mark.parametrize("compression", ["gzip", "bzip2"])
-@pytest.mark.parametrize(("source", "expected"), [(FASTA, "fasta"), (GENBANK, "genbank")])
+@pytest.mark.parametrize(
+    ("source", "expected"), [(FASTA, "fasta"), (GENBANK, "genbank"), (FASTQ, "fastq")]
+)
 @pytest.mark.parametrize("name", ["input.compressed", "misleading.txt"])
 def test_sniff_format_compressed(tmp_path, compression, source, expected, name):
     path = write(tmp_path, name, COMPRESSORS[compression](source.read_bytes()))
@@ -57,6 +65,13 @@ def test_sniff_format_ignores_extension(tmp_path, source, name, expected):
         (b"; comment\n>s1\nACGT\n", None),
         (b"\x00\xff\xfe\x80binary", None),
         (b"\n" * 200 + b">s1\nACGT\n", None),
+        (b"@r1\nACGT\n+\nIIII\n", "fastq"),
+        (b"\n\n@r1 desc\nACGT\n+r1 desc\nIIII\n", "fastq"),
+        (b"\xef\xbb\xbf@r1\nACGT\n+\nIIII\n", "fastq"),
+        # SAM header lines start with @ too, but have no + separator
+        (b"@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:100\n@PG\tID:bwa\n", None),
+        (b"@r1\n", None),
+        (b"@r1\nACGT\n", None),
     ],
 )
 def test_sniff_format_content(tmp_path, content, expected):

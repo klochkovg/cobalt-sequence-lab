@@ -1,8 +1,9 @@
 """File format sniffing helpers.
 
 The format is detected from the leading symbols of the content, not from the file extension:
-a FASTA file starts with `>`, a GenBank file with `LOCUS`. gzip and bzip2 compressed files
-are recognized by their magic bytes and decompressed transparently.
+a FASTA file starts with `>`, a GenBank file with `LOCUS`, a FASTQ file with `@` and has `+` on
+the third line. gzip and bzip2 compressed files are recognized by their magic bytes and
+decompressed transparently.
 """
 
 from __future__ import annotations
@@ -57,13 +58,18 @@ def _first_content_line(handle: TextIO) -> str | None:
 def sniff_format(path: str | Path) -> str | None:
     """Infer the sequence format of `path` from its content.
 
-    Returns "fasta" or "genbank" (Biopython SeqIO format names), or None if the content is
-    not recognized or the compressed data is corrupt (logged at debug level). A missing file
-    raises FileNotFoundError.
+    Returns "fasta", "genbank" or "fastq" (Biopython SeqIO format names), or None if the
+    content is not recognized or the compressed data is corrupt (logged at debug level). A
+    missing file raises FileNotFoundError.
+
+    FASTQ needs the `+` separator on the third line, so SAM headers (`@HD`, `@SQ`) are not
+    taken for FASTQ; wrapped (multi-line) FASTQ records are not detected either.
     """
     try:
         with open_text(path) as handle:
             line = _first_content_line(handle)
+            # Sequence and separator lines of a FASTQ record; "" past the end of the file
+            following = [next(handle, ""), next(handle, "")]
     except FileNotFoundError:
         raise
     except (OSError, EOFError) as exc:
@@ -76,6 +82,8 @@ def sniff_format(path: str | Path) -> str | None:
             fmt = "fasta"
         elif line.startswith("LOCUS"):
             fmt = "genbank"
+        elif line.startswith("@") and following[1].startswith("+"):
+            fmt = "fastq"
     log.debug("%s: format=%s, compression=%s", path, fmt, sniff_compression(path))
     return fmt
 

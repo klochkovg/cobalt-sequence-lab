@@ -35,7 +35,7 @@ class StatsRow:
     Field order is the column order. Annotation fields are None when the source
     format has no such annotation (e.g. FASTA); computed fields are None for a record
     with a length but no sequence content (GenBank WGS/CONTIG); source_file is None
-    for direct input.
+    for direct input; quality fields are None for formats without qualities (all but FASTQ).
     """
 
     id: str
@@ -52,6 +52,9 @@ class StatsRow:
     molecule_type: str | None
     topology: str | None
     feature_count: int
+    mean_quality: float | None
+    min_quality: int | None
+    q30_fraction: float | None
 
     @classmethod
     def from_record(cls, record: SequenceRecord) -> StatsRow:
@@ -71,6 +74,9 @@ class StatsRow:
             molecule_type=record.molecule_type,
             topology=record.topology,
             feature_count=record.feature_count,
+            mean_quality=record.mean_quality,
+            min_quality=record.min_quality,
+            q30_fraction=record.q30_fraction,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -89,6 +95,8 @@ class SortKey(Enum):
     GC_FRACTION = "gc_fraction"
     AMBIGUITY_FRACTION = "ambiguity_fraction"
     INVALID_CHAR_COUNT = "invalid_char_count"
+    MEAN_QUALITY = "mean_quality"
+    Q30_FRACTION = "q30_fraction"
 
 
 def build_stats_rows(

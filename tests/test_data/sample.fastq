@@ -1,0 +1,16 @@
+@read1 high quality
+ACGTACGTAC
++
+IIIIIIIIII
+@read2 low quality, lowercase
+acgtnacgta
++
+!!!!!+++++
+@read3
+ACGTNNACGT
++
+IIIII#####
+@read4 mixed
+GGCCAATT
++
+?????555

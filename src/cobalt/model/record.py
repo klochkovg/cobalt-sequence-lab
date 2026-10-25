@@ -28,7 +28,12 @@ class SequenceRecord:
     organism: str | None = None
     molecule_type: str | None = None
     topology: str | None = None
+    # Phred+33 (Sanger FASTQ) encoded per-base qualities; None for formats without qualities
     quality: str | None = None
+    mean_quality: float | None = None
+    min_quality: int | None = None
+    # Share of bases with Phred quality of 30 or more
+    q30_fraction: float | None = None
     # Path of the input file the record was read from; None for direct input
     source_file: str | None = None
 
@@ -55,6 +60,13 @@ class SequenceRecord:
             molecule_type=data.get("molecule_type"),
             topology=data.get("topology"),
             quality=data.get("quality"),
+            mean_quality=(
+                None if data.get("mean_quality") is None else float(data["mean_quality"])
+            ),
+            min_quality=None if data.get("min_quality") is None else int(data["min_quality"]),
+            q30_fraction=(
+                None if data.get("q30_fraction") is None else float(data["q30_fraction"])
+            ),
             source_file=data.get("source_file"),
         )
 

@@ -98,7 +98,9 @@ cobalt stats a.fasta b.gb.gz --out stats.csv   # several files, one table; sourc
 cobalt stats input.gb --out stats.parquet   # format from extension: .csv, .json, .parquet/.pq
 cobalt stats input.gb --format json --out stats.txt   # --format overrides the extension
 # parquet needs: pip install "cobalt-sequence-lab[parquet]"
+cobalt stats reads.fastq.gz --sort mean_quality   # FASTQ adds mean_quality, min_quality, q30_fraction
 cobalt normalize input.gb --fasta cleaned.fasta
+cobalt normalize reads.fastq --fastq cleaned.fastq   # qualities kept
 cobalt validate input.fasta --report qc.json
 cobalt serve
 cobalt serve --cors                         # allow any origin (UI development)
@@ -203,19 +205,26 @@ pip install -e .
 
 ## Input formats
 
-Today the input formats are FASTA and GenBank, plain or gzip/bzip2 compressed. Formats are
-detected from the content (`cobalt.io.sniff`), so each new format needs a detection rule as well
-as a reader. Planned additions, mostly as input, in rough order of priority:
+Today the input formats are FASTA, GenBank and FASTQ, plain or gzip/bzip2 compressed. Formats
+are detected from the content (`cobalt.io.sniff`), so each new format needs a detection rule as
+well as a reader.
 
-1. FASTQ (`@` first): raw sequencing reads and the main input of Nextflow pipelines.
-2. EMBL (`ID   ... BP.`): the same content as GenBank in different syntax
-3. Multiple sequence alignments: Clustal (`CLUSTAL`), Stockholm (`# STOCKHOLM 1.0`), PHYLIP
-4. UniProt/SwissProt flat files (`ID   ... AA.`): protein records with annotations.
-5. ABI/AB1 Sanger traces (binary, `ABIF` magic) and SnapGene `.dna` (binary)
-6. PDB/mmCIF: extract chain sequences from structure files (`pdb-seqres`, `cif-seqres` in
+FASTQ (`@` first, `+` on the third line) is read as Sanger/Illumina 1.8+ (Phred+33). Per-read
+`mean_quality`, `min_quality` and `q30_fraction` (share of bases with Phred >= 30) appear in
+`stats` and `inspect`; `normalize --fastq` writes reads with their qualities. Wrapped
+(multi-line) FASTQ isn't detected, and the whole file is loaded into memory, so very large read
+sets are memory-bound until reading is streamed.
+
+Planned additions, mostly as input, in rough order of priority:
+
+1. EMBL (`ID   ... BP.`): the same content as GenBank in different syntax
+2. Multiple sequence alignments: Clustal (`CLUSTAL`), Stockholm (`# STOCKHOLM 1.0`), PHYLIP
+3. UniProt/SwissProt flat files (`ID   ... AA.`): protein records with annotations.
+4. ABI/AB1 Sanger traces (binary, `ABIF` magic) and SnapGene `.dna` (binary)
+5. PDB/mmCIF: extract chain sequences from structure files (`pdb-seqres`, `cif-seqres` in
    Biopython). Structure analysis itself stays out of scope for now, but not for the future.
-7. VCF
-8. Lower priority: GFF3 annotations (often with embedded FASTA), 2bit genomes
+6. VCF
+7. Lower priority: GFF3 annotations (often with embedded FASTA), 2bit genomes
 
 ## Less dependence on Biopython
 

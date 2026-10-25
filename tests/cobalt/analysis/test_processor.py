@@ -1,10 +1,19 @@
+from pathlib import Path
+
 import pytest
 
 from cobalt.analysis.processor import (
+    InputFileError,
     calculate_alphabet_class,
     calculate_ambiguity_fraction,
     calculate_gc_fraction,
+    decode_quality,
+    encode_quality,
+    load_file,
+    quality_stats,
 )
+
+DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
 
 
 @pytest.mark.parametrize(
@@ -74,3 +83,55 @@ def test_ambiguity_fraction(seq, molecule_type, expected):
 @pytest.mark.xfail(strict=True, reason="unknown molecule type gives 0.0 instead of None")
 def test_ambiguity_fraction_unknown_type_is_none():
     assert calculate_ambiguity_fraction("ACGTN", "unknown") is None
+
+
+@pytest.mark.parametrize(
+    ("phred", "expected"),
+    [
+        ([40, 40], (40.0, 40, 1.0)),
+        ([30, 29, 0, 41], (25.0, 0, 0.5)),
+        ([], None),
+    ],
+)
+def test_quality_stats(phred, expected):
+    assert quality_stats(phred) == expected
+
+
+def test_quality_encoding_round_trip():
+    assert encode_quality([0, 10, 40]) == "!+I"
+    assert decode_quality("!+I") == [0, 10, 40]
+
+
+def test_load_file_fastq():
+    result = load_file(DATA_DIR / "sample.fastq")
+
+    assert result is not None
+    assert result.type == "fastq"
+    assert [record.id for record in result.records] == ["read1", "read2", "read3", "read4"]
+    read1, read2, read3, read4 = result.records
+    assert read1.type == "DNA"
+    assert read1.quality == "IIIIIIIIII"
+    assert (read1.mean_quality, read1.min_quality, read1.q30_fraction) == (40.0, 40, 1.0)
+    assert (read2.mean_quality, read2.min_quality, read2.q30_fraction) == (5.0, 0, 0.0)
+    assert (read3.mean_quality, read3.min_quality, read3.q30_fraction) == (21.0, 2, 0.5)
+    assert read4.mean_quality == pytest.approx(26.25)
+    assert read4.q30_fraction == pytest.approx(0.625)
+
+
+def test_load_file_fasta_has_no_quality():
+    result = load_file(DATA_DIR / "ls_orchid.fasta")
+
+    assert result is not None
+    record = result.records[0]
+    assert record.quality is None
+    assert record.mean_quality is None
+    assert record.min_quality is None
+    assert record.q30_fraction is None
+
+
+def test_load_file_fastq_quality_shorter_than_sequence(tmp_path):
+    path = tmp_path / "bad.fastq"
+    path.write_text("@r1\nACGT\n+\nII\n")
+
+    with pytest.raises(InputFileError, match="cannot parse as fastq"):
+        load_file(path)

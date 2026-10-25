@@ -29,7 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cobalt stats")
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument(
-        "input", nargs="*", help="Input FASTA/GenBank file(s) (plain, gzip or bzip2)"
+        "input", nargs="*", help="Input FASTA/GenBank/FASTQ file(s) (plain, gzip or bzip2)"
     )
     source.add_argument(
         "--input",
@@ -116,6 +116,9 @@ def write_stats_parquet(path: str, rows: list[StatsRow]) -> None:
             ("molecule_type", pa.string()),
             ("topology", pa.string()),
             ("feature_count", pa.int64()),
+            ("mean_quality", pa.float64()),
+            ("min_quality", pa.int64()),
+            ("q30_fraction", pa.float64()),
         ]
     )
     table = pa.Table.from_pylist([row.to_dict() for row in rows], schema=schema)

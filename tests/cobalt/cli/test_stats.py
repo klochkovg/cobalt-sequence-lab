@@ -152,6 +152,8 @@ def test_stats_parquet_keeps_types_of_empty_annotations(capsys, tmp_path):
     assert exit_code == 0
     assert schema.names == STATS_FIELDNAMES
     assert str(schema.field("organism").type) == "string"
+    assert str(schema.field("mean_quality").type) == "double"
+    assert str(schema.field("min_quality").type) == "int64"
 
 
 def test_stats_parquet_needs_out(capsys):
@@ -369,3 +371,45 @@ def test_stats_sort_by_computed_column(capsys, column):
     values = [row[column] for row in json.loads(out)]
     assert exit_code == 0
     assert values == sorted(values, reverse=True)
+
+
+def test_stats_fastq_json(capsys):
+    exit_code, out = run_stats(capsys, str(DATA_DIR / "sample.fastq"), "--json")
+
+    assert exit_code == 0
+    rows = json.loads(out)
+    assert [row["id"] for row in rows] == ["read1", "read2", "read3", "read4"]
+    assert rows[0]["source_format"] == "fastq"
+    assert (rows[0]["mean_quality"], rows[0]["min_quality"], rows[0]["q30_fraction"]) == (
+        40.0,
+        40,
+        1.0,
+    )
+    assert "quality" not in rows[0]
+
+
+def test_stats_fastq_sort_by_mean_quality(capsys, tmp_path):
+    path = tmp_path / "reads.fastq.gz"
+    path.write_bytes(gzip.compress((DATA_DIR / "sample.fastq").read_bytes()))
+
+    exit_code, out = run_stats(capsys, str(path), "--sort", "mean_quality", "--desc")
+
+    assert exit_code == 0
+    assert [row["id"] for row in csv.DictReader(io.StringIO(out))] == [
+        "read1",
+        "read4",
+        "read3",
+        "read2",
+    ]
+
+
+def test_stats_fastq_parquet_matches_json(capsys, tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    path = str(DATA_DIR / "sample.fastq")
+    out = tmp_path / "stats.parquet"
+
+    exit_code, _ = run_stats(capsys, path, "--format", "parquet", "--out", str(out))
+    _, json_out = run_stats(capsys, path, "--json")
+
+    assert exit_code == 0
+    assert pq.read_table(out).to_pylist() == json.loads(json_out)
