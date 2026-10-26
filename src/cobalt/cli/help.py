@@ -16,7 +16,7 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
     "normalize": "Write cleaned (uppercased) records as FASTA, GenBank and/or FASTQ",
     "serve": "Run the REST API server (needs the optional 'serve' dependencies)",
     "run": "Run a pipeline defined in YAML (not implemented yet)",
-    "pipeline": "Check a pipeline definition or print its DAG (not implemented yet)",
+    "pipeline": "Check a pipeline definition and print its structure, or print its DAG",
     "runs": "List past pipeline runs or show one run's provenance (not implemented yet)",
     "help": "Show this message, or detailed help for a command",
 }

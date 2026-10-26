@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Sequence processing CLI experiments with Biopython"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["biopython>=1.83", "rich>=13"]
+dependencies = ["biopython>=1.83", "rich>=13", "pyyaml>=6"]
 
 [project.optional-dependencies]
 serve = ["fastapi", "uvicorn[standard]", "pydantic>=2"]
@@ -20,6 +20,7 @@ dev = [
     "httpx2",  # required by fastapi.testclient
     "ruff",
     "mypy",
+    "types-PyYAML",
 ]
 
 [project.scripts]

@@ -256,19 +256,73 @@ Deployment path: `api-key` now → `jwt` once an identity provider exists → a 
 (Istio, Linkerd) providing mTLS between services, with the JWT saying who is calling and what
 they may do.
 
-## Pipelining (not implemented yet)
+## Pipelining (partially implemented)
 
 We introduce concept of pipeline and task.
 
-- `task` - reusable defintion for cobalt execution, inspect, validate etc.
-- `pipeline` - A DAG (Direct Acyclic Graph) of tasks with wiring between them, defined in YAML
+- `task` - reusable definition for cobalt execution, inspect, validate etc.
+- `pipeline` - A DAG (Directed Acyclic Graph) of tasks with wiring between them, defined in YAML
 - `job` - concrete execution of the task
 - `run` - execution of the whole pipeline
 
 ```bash
-cobalt run pipeline.yaml --backend local --param input=x.fasta --resume
-cobalt pipeline check pipeline.yaml     # schema + DAG validation, no execution
-cobalt pipeline graph pipeline.yaml     # print/render the DAG
-cobalt runs list                        # past runs from manifests
-cobalt runs show <run_id>               # provenance for one run
+cobalt pipeline check pipeline.yaml     # schema + DAG validation, prints the structure
+cobalt pipeline graph pipeline.yaml     # prints the DAG, one `upstream -> downstream` per line
+cobalt run pipeline.yaml --backend local --param input=x.fasta --resume   # stub
+cobalt runs list                        # stub: past runs from manifests
+cobalt runs show <run_id>               # stub: provenance for one run
+```
+
+`pipeline check` and `pipeline graph` work; `run` and `runs` parse their arguments but only report
+"not implemented yet" (exit status 1). The code lives in `src/cobalt/pipeline/` (model, loader,
+text rendering).
+
+### Pipeline file, schema version 1
+
+Example: [`tests/test_data/pipeline_test_v1.yaml`](tests/test_data/pipeline_test_v1.yaml).
+
+```yaml
+schema_version: 1
+pipeline: {name: fold-rna-from-fasta, version: 0.1.0, description: ...}
+params:                      # pipeline-level knobs: type + default
+  min_length: {type: int, default: 20}
+inputs:                      # named, typed entry points supplied at run time
+  sequences: {type: fasta}
+tasks:
+  validate:
+    type: validate
+    inputs: {file: "${inputs.sequences}"}
+    params: {min_length: "${params.min_length}"}
+  normalize:
+    type: normalize
+    inputs:
+      file: "${inputs.sequences}"
+      qc: "${tasks.validate.outputs.report}"   # this reference creates the edge
+outputs:
+  report: "${tasks.validate.outputs.report}"
+```
+
+- Top-level keys: `schema_version` (must be `1`), `pipeline` (`name` and `version` required),
+  `params`, `inputs`, `tasks` (at least one), `outputs`.
+- Task keys: `type` (required), `inputs`, `params`, `adapter`, `container`, `resources`, `scatter`.
+- References: `${inputs.<name>}`, `${params.<name>}`, `${tasks.<task>.outputs.<key>}`. Edges of
+  the DAG come from the `${tasks...}` references.
+- Quote references inside inline `{...}` mappings (`{file: "${inputs.sequences}"}`): unquoted,
+  `{` and `}` break the YAML.
+
+`pipeline check` rejects unknown keys (catches typos like `adaptor`), references to undefined
+inputs, params or tasks, and dependency cycles. The error names the file and the key:
+
+```text
+ERROR: pipeline.yaml: tasks.fold: unknown key 'adaptor'
+ERROR: pipeline.yaml: tasks.normalize.inputs.qc: unresolved reference ${tasks.validte.outputs.report}
+```
+
+Output for the example file:
+
+```text
+$ cobalt pipeline graph tests/test_data/pipeline_test_v1.yaml
+validate -> normalize
+normalize -> fold
+inspect
 ```

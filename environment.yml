@@ -9,6 +9,7 @@ dependencies:
   - numpy
   - typer
   - rich
+  - pyyaml
   - pydantic
   - fastapi
   - uvicorn-standard
@@ -17,6 +18,7 @@ dependencies:
   - pytest-cov
   - ruff
   - mypy
+  - types-pyyaml
   - jupyterlab
   - ipykernel
   - pip

@@ -1,0 +1,42 @@
+schema_version: 1            # lets you evolve the format without breaking old files
+
+pipeline:
+  name: fold-rna-from-fasta
+  version: 0.1.0
+  description: Inspect, validate, normalize, then fold each sequence.
+
+params:                      # pipeline-level knobs, declared with type + default
+  min_length: {type: int, default: 20}
+  temperature: {type: float, default: 37.0}
+
+inputs:                      # named, typed entry points (supplied at run time)
+  sequences: {type: fasta}
+
+tasks:
+  inspect:
+    type: inspect            # looked up in the task registry
+    inputs: {file: "${inputs.sequences}"}
+
+  validate:
+    type: validate
+    inputs: {file: "${inputs.sequences}"}
+    params: {min_length: "${params.min_length}"}
+
+  normalize:
+    type: normalize
+    inputs:
+      file: "${inputs.sequences}"
+      qc: "${tasks.validate.outputs.report}"   # this reference creates the edge
+
+  fold:
+    type: fold_rna
+    adapter: viennarna       # which predict_structure() backend
+    inputs: {sequences: "${tasks.normalize.outputs.fasta}"}
+    params: {temperature: "${params.temperature}"}
+    container: quay.io/biocontainers/viennarna:2.6.4--py310pl5321h6cc9453_0
+    resources: {cpus: 2, memory: 4GB}
+    scatter: record          # fan-out: one job per sequence
+
+outputs:                     # what gets published/kept from the run
+  report: "${tasks.inspect.outputs.report}"
+  structures: "${tasks.fold.outputs.structures}"
