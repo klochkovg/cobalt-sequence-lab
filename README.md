@@ -255,3 +255,20 @@ Modes:
 Deployment path: `api-key` now → `jwt` once an identity provider exists → a service mesh
 (Istio, Linkerd) providing mTLS between services, with the JWT saying who is calling and what
 they may do.
+
+## Pipelining (not implemented yet)
+
+We introduce concept of pipeline and task.
+
+- `task` - reusable defintion for cobalt execution, inspect, validate etc.
+- `pipeline` - A DAG (Direct Acyclic Graph) of tasks with wiring between them, defined in YAML
+- `job` - concrete execution of the task
+- `run` - execution of the whole pipeline
+
+```bash
+cobalt run pipeline.yaml --backend local --param input=x.fasta --resume
+cobalt pipeline check pipeline.yaml     # schema + DAG validation, no execution
+cobalt pipeline graph pipeline.yaml     # print/render the DAG
+cobalt runs list                        # past runs from manifests
+cobalt runs show <run_id>               # provenance for one run
+```
