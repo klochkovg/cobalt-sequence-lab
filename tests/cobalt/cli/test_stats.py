@@ -413,3 +413,12 @@ def test_stats_fastq_parquet_matches_json(capsys, tmp_path):
 
     assert exit_code == 0
     assert pq.read_table(out).to_pylist() == json.loads(json_out)
+
+
+@pytest.mark.parametrize("name", ["1A8O.pdb", "1A8O.cif"])
+def test_stats_structure_file(capsys, name):
+    exit_code = main(["stats", str(DATA_DIR / name), "--json"])
+
+    records = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert [(r["id"], r["type"], r["length"]) for r in records] == [("1A8O:A", "protein", 70)]

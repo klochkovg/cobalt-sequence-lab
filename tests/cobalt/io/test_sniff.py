@@ -11,6 +11,8 @@ DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
 FASTA = DATA_DIR / "ls_orchid.fasta"
 GENBANK = DATA_DIR / "ls_orchid.gbk"
 FASTQ = DATA_DIR / "sample.fastq"
+PDB = DATA_DIR / "1A8O.pdb"
+MMCIF = DATA_DIR / "1A8O.cif"
 
 COMPRESSORS = {"gzip": gzip.compress, "bzip2": bz2.compress}
 
@@ -27,6 +29,8 @@ def write(tmp_path: Path, name: str, content: bytes) -> Path:
         (FASTA, "fasta"),
         (GENBANK, "genbank"),
         (FASTQ, "fastq"),
+        (PDB, "pdb-atom"),
+        (MMCIF, "cif-atom"),
         (DATA_DIR / "text_input.txt", None),
     ],
 )
@@ -36,7 +40,14 @@ def test_sniff_format_test_data(path, expected):
 
 @pytest.mark.parametrize("compression", ["gzip", "bzip2"])
 @pytest.mark.parametrize(
-    ("source", "expected"), [(FASTA, "fasta"), (GENBANK, "genbank"), (FASTQ, "fastq")]
+    ("source", "expected"),
+    [
+        (FASTA, "fasta"),
+        (GENBANK, "genbank"),
+        (FASTQ, "fastq"),
+        (PDB, "pdb-atom"),
+        (MMCIF, "cif-atom"),
+    ],
 )
 @pytest.mark.parametrize("name", ["input.compressed", "misleading.txt"])
 def test_sniff_format_compressed(tmp_path, compression, source, expected, name):
@@ -72,6 +83,17 @@ def test_sniff_format_ignores_extension(tmp_path, source, name, expected):
         (b"@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:100\n@PG\tID:bwa\n", None),
         (b"@r1\n", None),
         (b"@r1\nACGT\n", None),
+        # Tool output often has no HEADER and starts with REMARK, MODEL or ATOM
+        (b"REMARK   1 PREDICTED STRUCTURE\n", "pdb-atom"),
+        (b"MODEL        1\n", "pdb-atom"),
+        (
+            b"ATOM      1  N   MET A   1      27.340  24.430   2.614  1.00 90.12           N\n",
+            "pdb-atom",
+        ),
+        (b"ATOM\n", "pdb-atom"),
+        (b"ATOMIC notes\n", None),
+        (b"data_1ABC\n#\n_entry.id 1ABC\n", "cif-atom"),
+        (b"DATA_1ABC\n", None),
     ],
 )
 def test_sniff_format_content(tmp_path, content, expected):
@@ -111,6 +133,8 @@ def test_open_text_decompresses(tmp_path, compression):
 def test_is_supported(tmp_path):
     assert is_supported(FASTA)
     assert is_supported(GENBANK)
+    assert is_supported(PDB)
+    assert is_supported(MMCIF)
     assert not is_supported(write(tmp_path, "notes.txt", b"hello\n"))
 
 

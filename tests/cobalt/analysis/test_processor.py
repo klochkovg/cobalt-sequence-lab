@@ -135,3 +135,29 @@ def test_load_file_fastq_quality_shorter_than_sequence(tmp_path):
 
     with pytest.raises(InputFileError, match="cannot parse as fastq"):
         load_file(path)
+
+
+@pytest.mark.parametrize(("name", "fmt"), [("1A8O.pdb", "pdb-atom"), ("1A8O.cif", "cif-atom")])
+def test_load_file_structure(name, fmt):
+    result = load_file(DATA_DIR / name)
+
+    assert result is not None
+    assert result.type == fmt
+    assert result.records_num == 1
+    record = result.records[0]
+    assert record.id == "1A8O:A"
+    assert record.description == ""
+    assert record.type == "protein"
+    assert record.source_format == fmt
+    assert record.length == 70
+    assert record.sequence is not None
+    assert record.sequence.startswith("MDIRQGPKEPFRDYVDRFYK")
+    assert record.gc_fraction is None
+
+
+def test_load_file_pdb_and_mmcif_agree():
+    pdb = load_file(DATA_DIR / "1A8O.pdb")
+    mmcif = load_file(DATA_DIR / "1A8O.cif")
+
+    assert pdb is not None and mmcif is not None
+    assert [r.sequence for r in pdb.records] == [r.sequence for r in mmcif.records]

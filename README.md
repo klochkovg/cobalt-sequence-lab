@@ -205,7 +205,8 @@ pip install -e .
 
 ## Input formats
 
-Today the input formats are FASTA, GenBank and FASTQ, plain or gzip/bzip2 compressed. Formats
+Today the input formats are FASTA, GenBank, FASTQ, PDB and mmCIF, plain or gzip/bzip2
+compressed. Formats
 are detected from the content (`cobalt.io.sniff`), so each new format needs a detection rule as
 well as a reader.
 
@@ -215,14 +216,21 @@ FASTQ (`@` first, `+` on the third line) is read as Sanger/Illumina 1.8+ (Phred+
 (multi-line) FASTQ isn't detected, and the whole file is loaded into memory, so very large read
 sets are memory-bound until reading is streamed.
 
+PDB (first line is a record name such as `HEADER`, `REMARK`, `MODEL` or `ATOM`) and mmCIF
+(`data_` first) structure files are read as one protein sequence per chain, built from the
+ATOM records (Biopython `pdb-atom`/`cif-atom`). Files from structure prediction tools, which
+usually have no SEQRES records, give sequences too. Record ids are `<PDB id>:<chain>`, e.g.
+`1A8O:A`. Coordinates and other structure data aren't kept yet.
+
 Planned additions, mostly as input, in rough order of priority:
 
 1. EMBL (`ID   ... BP.`): the same content as GenBank in different syntax
 2. Multiple sequence alignments: Clustal (`CLUSTAL`), Stockholm (`# STOCKHOLM 1.0`), PHYLIP
 3. UniProt/SwissProt flat files (`ID   ... AA.`): protein records with annotations.
 4. ABI/AB1 Sanger traces (binary, `ABIF` magic) and SnapGene `.dna` (binary)
-5. PDB/mmCIF: extract chain sequences from structure files (`pdb-seqres`, `cif-seqres` in
-   Biopython). Structure analysis itself stays out of scope for now, but not for the future.
+5. PDB/mmCIF: chain sequences are read (see above). Next is a structure model (chains,
+   residues, atoms, B-factors) with structure output, then adapters for structure prediction
+   tools.
 6. VCF
 7. Lower priority: GFF3 annotations (often with embedded FASTA), 2bit genomes
 

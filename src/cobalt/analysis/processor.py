@@ -137,8 +137,9 @@ class InputFileError(Exception):
 def load_file(path: Path) -> AnalysisResult | None:
     """Detect the format of `path` from its content and read it.
 
-    FASTA, GenBank and FASTQ; plain, gzip and bzip2 files are supported. Returns None for an empty file and raises
-    InputFileError if the file is missing, unrecognized or can't be parsed.
+    FASTA, GenBank, FASTQ, PDB and mmCIF (one protein sequence per chain); plain, gzip and bzip2
+    files are supported. Returns None for an empty file and raises InputFileError if the file is
+    missing, unrecognized or can't be parsed.
     """
     if not path.is_file():
         raise InputFileError(f"file not found: {path}")
@@ -153,7 +154,8 @@ def load_file(path: Path) -> AnalysisResult | None:
             return None
         raise InputFileError(
             f"{path}: unrecognized format, expected FASTA (starts with '>'), "
-            "GenBank (starts with 'LOCUS') or FASTQ (starts with '@')"
+            "GenBank (starts with 'LOCUS'), FASTQ (starts with '@'), "
+            "PDB (starts with a record name like 'HEADER' or 'ATOM') or mmCIF (starts with 'data_')"
         )
     log.debug("%s: format=%s, compression=%s", path, fmt, sniff_compression(path))
     try:

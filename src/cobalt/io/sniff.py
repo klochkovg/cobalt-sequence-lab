@@ -2,7 +2,8 @@
 
 The format is detected from the leading symbols of the content, not from the file extension:
 a FASTA file starts with `>`, a GenBank file with `LOCUS`, a FASTQ file with `@` and has `+` on
-the third line. gzip and bzip2 compressed files are recognized by their magic bytes and
+the third line, a PDB file with a PDB record name (`HEADER`, `ATOM`, ...) and an mmCIF file with
+`data_`. gzip and bzip2 compressed files are recognized by their magic bytes and
 decompressed transparently.
 """
 
@@ -20,6 +21,28 @@ GZIP_MAGIC = b"\x1f\x8b"
 BZIP2_MAGIC = b"BZh"
 # Limit on leading blank lines skipped, so a huge blank file is never read in full
 MAX_SNIFF_LINES = 100
+# Record names a PDB file can start with: full files begin with HEADER, files written by
+# modelling and prediction tools often begin with REMARK, MODEL or ATOM directly
+PDB_RECORD_NAMES = frozenset(
+    {
+        "HEADER",
+        "OBSLTE",
+        "TITLE",
+        "SPLIT",
+        "CAVEAT",
+        "COMPND",
+        "SOURCE",
+        "KEYWDS",
+        "EXPDTA",
+        "AUTHOR",
+        "REMARK",
+        "SEQRES",
+        "CRYST1",
+        "MODEL",
+        "ATOM",
+        "HETATM",
+    }
+)
 
 
 def sniff_compression(path: str | Path) -> str | None:
@@ -58,9 +81,12 @@ def _first_content_line(handle: TextIO) -> str | None:
 def sniff_format(path: str | Path) -> str | None:
     """Infer the sequence format of `path` from its content.
 
-    Returns "fasta", "genbank" or "fastq" (Biopython SeqIO format names), or None if the
-    content is not recognized or the compressed data is corrupt (logged at debug level). A
-    missing file raises FileNotFoundError.
+    Returns "fasta", "genbank", "fastq", "pdb-atom" or "cif-atom" (Biopython SeqIO format
+    names), or None if the content is not recognized or the compressed data is corrupt (logged
+    at debug level). A missing file raises FileNotFoundError.
+
+    PDB and mmCIF files are read as one protein sequence per chain, built from the ATOM records,
+    so files from structure prediction tools without SEQRES records give sequences too.
 
     FASTQ needs the `+` separator on the third line, so SAM headers (`@HD`, `@SQ`) are not
     taken for FASTQ; wrapped (multi-line) FASTQ records are not detected either.
@@ -84,6 +110,11 @@ def sniff_format(path: str | Path) -> str | None:
             fmt = "genbank"
         elif line.startswith("@") and following[1].startswith("+"):
             fmt = "fastq"
+        elif line[:6].rstrip() in PDB_RECORD_NAMES:
+            # Record names fill columns 1-6, so "ATOMIC notes" is not taken for PDB
+            fmt = "pdb-atom"
+        elif line.startswith("data_"):
+            fmt = "cif-atom"
     log.debug("%s: format=%s, compression=%s", path, fmt, sniff_compression(path))
     return fmt
 

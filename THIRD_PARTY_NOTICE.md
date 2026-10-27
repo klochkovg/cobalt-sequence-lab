@@ -5,7 +5,8 @@ This repository includes third-party material from the Biopython project.
 ## Biopython sample data
 
 Some test/example sequence files in this repository were copied from the
-Biopython source distribution for testing and demonstration purposes.
+Biopython source distribution for testing and demonstration purposes
+(`tests/test_data/ls_orchid.fasta`, `ls_orchid.gbk`, `1A8O.pdb`, `1A8O.cif`).
 
 - Project: Biopython
 - Upstream: Biopython
