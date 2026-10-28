@@ -1,11 +1,13 @@
 name: biolab-dev
 channels:
   - conda-forge
+  - bioconda
 dependencies:
   - python=3.12
   - biopython
   - pandas
   - pyarrow
+  - viennarna
   - numpy
   - typer
   - rich

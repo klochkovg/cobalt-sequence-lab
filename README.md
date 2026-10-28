@@ -182,6 +182,8 @@ conda env create -f environment.yml
 pip install -e .
 ```
 
+RNA folding (planned) uses ViennaRNA: `pip install -e ".[rna]"` (included in `.[dev]`).
+
 Local installation
 
 ```bash
