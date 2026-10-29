@@ -102,6 +102,9 @@ cobalt stats reads.fastq.gz --sort mean_quality   # FASTQ adds mean_quality, min
 cobalt normalize input.gb --fasta cleaned.fasta
 cobalt normalize reads.fastq --fastq cleaned.fastq   # qualities kept
 cobalt validate input.fasta --report qc.json
+cobalt foldrna input.fasta                  # RNAfold-style: >id, sequence, dot-bracket (MFE)
+cobalt foldrna --input GGGAAAUCC --adapter viennarna   # viennarna is the default (and only) adapter
+# foldrna needs: pip install "cobalt-sequence-lab[rna]"
 cobalt serve
 cobalt serve --cors                         # allow any origin (UI development)
 cobalt serve --cors http://localhost:5173   # allow specific origin(s)
@@ -182,7 +185,7 @@ conda env create -f environment.yml
 pip install -e .
 ```
 
-RNA folding (planned) uses ViennaRNA: `pip install -e ".[rna]"` (included in `.[dev]`).
+RNA folding (`cobalt foldrna`) uses ViennaRNA: `pip install -e ".[rna]"` (included in `.[dev]`).
 
 Local installation
 

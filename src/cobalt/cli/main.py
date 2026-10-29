@@ -9,7 +9,7 @@ import sys
 from collections.abc import Callable, Sequence
 
 from cobalt import __version__
-from cobalt.cli import help, inspect, normalize, pipeline, run, runs, stats, validate
+from cobalt.cli import foldrna, help, inspect, normalize, pipeline, run, runs, stats, validate
 from cobalt.logging_config import configure_logging
 
 log = logging.getLogger(__name__)
@@ -37,6 +37,7 @@ COMMAND_HANDLERS: dict[str, Callable[[Sequence[str] | None], int]] = {
     "stats": stats.main,
     "normalize": normalize.main,
     "validate": validate.main,
+    "foldrna": foldrna.main,
     "run": run.main,
     "pipeline": pipeline.main,
     "runs": runs.main,

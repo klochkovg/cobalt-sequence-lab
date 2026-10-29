@@ -14,6 +14,7 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
     "stats": "Emit a per-record stats table (CSV, JSON or Parquet) for a file or a raw sequence",
     "validate": "Check records for problems (empty sequences, duplicate IDs, invalid chars)",
     "normalize": "Write cleaned (uppercased) records as FASTA, GenBank and/or FASTQ",
+    "foldrna": "Predict RNA secondary structure (dot-bracket + MFE); needs the 'rna' extra",
     "serve": "Run the REST API server (needs the optional 'serve' dependencies)",
     "run": "Run a pipeline defined in YAML (not implemented yet)",
     "pipeline": "Check a pipeline definition and print its structure, or print its DAG",
