@@ -243,6 +243,62 @@ Planned additions, mostly as input, in rough order of priority:
 
 Biopython is the reason for the project and stays the reference implementation, but in the long
 
+## Local and client-server modes (planned)
+
+Cobalt runs in one of two modes:
+
+- **local** (default): the command does the work in the current process, as it does today. No
+  network connections are made.
+- **client-server**: one instance runs as the server (`cobalt serve`). Other instances run as
+  clients: they send the work to the server and print or write the result as a local run would.
+
+Local mode is used unless a server URL is given, with the global `--server` flag or the
+`COBALT_SERVER` environment variable:
+
+```bash
+cobalt serve --host 0.0.0.0 --auth api-key                    # machine A: the server
+
+cobalt stats input.fasta                                      # local, as today
+cobalt --server http://lab-a:8000 stats input.fasta           # client: processed on lab-a
+export COBALT_SERVER=http://lab-a:8000                        # client for the whole session
+cobalt stats input.fasta --out stats.csv                      # stats.csv is written locally
+cobalt --local stats input.fasta                              # local, even with COBALT_SERVER set
+```
+
+| Control                       | Effect                                                        |
+| ----------------------------- | ------------------------------------------------------------- |
+| `--server URL`                | client mode, send the work to the cobalt server at `URL`      |
+| `--local`                     | local mode, overrides `COBALT_SERVER`                         |
+| `COBALT_SERVER=URL`           | client mode when neither `--server` nor `--local` is given    |
+| `COBALT_API_KEY=key`          | key sent as `X-API-Key` to a server running `--auth api-key`  |
+
+Precedence: `--server` / `--local` → `COBALT_SERVER` → local. Like `-v`, the flags go before
+the command.
+
+Why these names: `--cobalt-url` repeats the program name (`cobalt --cobalt-url ...`), and
+`COBALT-URL` can't be set from a shell because a variable name can't contain `-`. `--server`
+matches `serve` on the other end, and `COBALT_SERVER` follows `COBALT_LOG_LEVEL` and
+`COBALT_API_KEYS`.
+
+Rules:
+
+- The output is the same in both modes. Input files are read and uploaded by the client, and
+  results are written by the client (`--out`, `--report`, `--fasta`), so paths always refer to
+  the client's machine.
+- No silent fallback. If the server can't be reached, rejects the key or doesn't support the
+  command, the client logs an error and exits with status 1; it doesn't run the command locally
+  instead.
+- The API key comes only from `COBALT_API_KEY`, never from a flag (flags are visible in `ps`).
+  It's sent only to the configured server. The client should warn when a key is sent over plain
+  `http://` to a host that isn't loopback.
+- In client mode, the client checks the server version (`GET /`) first, so a mismatch gives a
+  clear error.
+- `serve` and `help` always run locally and ignore `--server` and `COBALT_SERVER`.
+- `pipeline check` and `pipeline graph` only read the YAML, so they run locally in both modes.
+- Client mode starts with the commands the server already exposes (`stats`, `inspect`,
+  `validate`, `normalize`). `foldrna`, then `run` and `runs` once pipelines execute, need server
+  endpoints first; until then they fail in client mode instead of running locally.
+
 ## Authentication for `serve` (microservice deployment)
 
 The goal is to run `cobalt serve` as one service in a microservice system, so authentication is
