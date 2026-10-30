@@ -243,7 +243,12 @@ Planned additions, mostly as input, in rough order of priority:
 
 Biopython is the reason for the project and stays the reference implementation, but in the long
 
-## Local and client-server modes (planned)
+## Local and client-server modes (partially implemented)
+
+Status: `--server`, `--local` and `COBALT_SERVER` are parsed, and the entry point
+(`cobalt.cli.main`) decides between local and client mode (`cobalt.cli.remote`). Remote calls
+aren't implemented yet, so in client mode the command logs a warning and still runs locally.
+Everything below about the server side describes the target behavior.
 
 Cobalt runs in one of two modes:
 

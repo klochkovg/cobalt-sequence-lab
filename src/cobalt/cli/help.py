@@ -37,7 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def print_overview() -> None:
     """Print the list of available commands with short descriptions."""
-    print("usage: cobalt [-v | -q] <command> [args...]")
+    print("usage: cobalt [-v | -q] [--server URL | --local] <command> [args...]")
     print()
     print("Available commands:")
     width = max(len(name) for name in COMMAND_DESCRIPTIONS)

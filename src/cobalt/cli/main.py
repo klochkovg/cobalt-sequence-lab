@@ -10,6 +10,7 @@ from collections.abc import Callable, Sequence
 
 from cobalt import __version__
 from cobalt.cli import foldrna, help, inspect, normalize, pipeline, run, runs, stats, validate
+from cobalt.cli.remote import LOCAL_COMMANDS, SERVER_ENV, resolve_server, run_remote
 from cobalt.logging_config import configure_logging
 
 log = logging.getLogger(__name__)
@@ -59,6 +60,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show more diagnostics on stderr (-v: info, -vv: debug)",
     )
     verbosity.add_argument("-q", "--quiet", action="store_true", help="Show only errors on stderr")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--server",
+        metavar="URL",
+        help=f"Client mode: run the command on the cobalt server at URL (default: ${SERVER_ENV})",
+    )
+    mode.add_argument(
+        "--local", action="store_true", help=f"Run the command locally, ignoring ${SERVER_ENV}"
+    )
     parser.add_argument(
         "command",
         choices=sorted(COMMAND_HANDLERS),
@@ -77,7 +87,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parsed = build_parser().parse_args(argv)
     configure_logging(parsed.verbose, parsed.quiet, server=parsed.command == "serve")
     handler = COMMAND_HANDLERS[parsed.command]
+    server = None
+    if parsed.command not in LOCAL_COMMANDS:
+        try:
+            server = resolve_server(parsed.server, parsed.local)
+        except ValueError as exc:
+            log.error("%s", exc)
+            return 1
     try:
+        if server is not None:
+            return int(run_remote(server, parsed.command, parsed.args, handler))
         return int(handler(parsed.args))
     except BrokenPipeError:
         # The reader of stdout exited early (e.g. `cobalt stats big.fa | head`): stop quietly.
