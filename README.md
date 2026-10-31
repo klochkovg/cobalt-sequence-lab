@@ -301,14 +301,16 @@ Rules:
 - `serve` and `help` always run locally and ignore `--server` and `COBALT_SERVER`.
 - `pipeline check` and `pipeline graph` only read the YAML, so they run locally in both modes.
 - Client mode starts with the commands the server already exposes (`stats`, `inspect`,
-  `validate`, `normalize`). `foldrna`, then `run` and `runs` once pipelines execute, need server
-  endpoints first; until then they fail in client mode instead of running locally.
+  `validate`, `normalize`). `foldrna`, `run` and `runs` have stub endpoints (`POST /foldrna`,
+  `POST /run`, `GET /runs`, `GET /runs/{run_id}`) that answer 501 Not Implemented; until they
+  are implemented, these commands fail in client mode instead of running locally.
 
 ## Authentication for `serve` (microservice deployment)
 
 The goal is to run `cobalt serve` as one service in a microservice system, so authentication is
 pluggable and selected with `--auth`. Each mode is a FastAPI dependency attached to the router
-with the processing endpoints (`/stats`, `/inspect`, `/validate`, `/normalize`); `GET /` stays
+with the processing endpoints (`/stats`, `/inspect`, `/validate`, `/normalize`, and the
+`/foldrna`, `/run` and `/runs` stubs); `GET /` stays
 public for version info and liveness probes. Secrets come only from environment variables, never
 from command-line arguments (those are visible in `ps`).
 

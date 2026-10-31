@@ -10,11 +10,12 @@ from collections.abc import Sequence
 import uvicorn
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from cobalt import __version__
+from cobalt.analysis.folding import DEFAULT_ADAPTER
 from cobalt.analysis.processor import process_records
 from cobalt.cli.serve_auth import AUTH_MODES, AuthDependency, build_auth
 from cobalt.model.stats import StatsRow, build_stats_rows
@@ -26,6 +27,29 @@ class SequenceRequest(BaseModel):
     """Request body for manual sequence input."""
 
     sequence: str
+
+
+class FoldRequest(SequenceRequest):
+    """Request body for RNA folding of a manual sequence input."""
+
+    adapter: str = DEFAULT_ADAPTER
+
+
+class RunRequest(BaseModel):
+    """Request body for a pipeline run; `pipeline` is the YAML definition text."""
+
+    pipeline: str
+    params: dict[str, str] = {}
+    backend: str = "local"
+    resume: bool = False
+
+
+def _not_implemented(command: str) -> HTTPException:
+    """Build the error that stub endpoints raise, worded like the CLI stubs."""
+    return HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail=f"cobalt {command} is not implemented yet",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -70,6 +94,7 @@ def build_app(
 
     CORS is disabled when `cors_origins` is None; an empty sequence allows any origin.
     `auth` guards the processing endpoints; `/` stays public (version info, liveness probe).
+    `/foldrna`, `/run` and `/runs` are stubs that answer 501 Not Implemented for now.
     """
     app = FastAPI()
     api = APIRouter(dependencies=[Depends(auth)] if auth else [])
@@ -113,6 +138,22 @@ def build_app(
         primary_result = process_records([seq_record], "raw")
         records = primary_result.records if primary_result else []
         return build_stats_rows(records)
+
+    @api.post("/foldrna")
+    async def foldrna(body: FoldRequest):
+        raise _not_implemented("foldrna")
+
+    @api.post("/run")
+    async def run(body: RunRequest):
+        raise _not_implemented("run")
+
+    @api.get("/runs")
+    async def runs_list():
+        raise _not_implemented("runs list")
+
+    @api.get("/runs/{run_id}")
+    async def runs_show(run_id: str):
+        raise _not_implemented("runs show")
 
     app.include_router(api)
     return app

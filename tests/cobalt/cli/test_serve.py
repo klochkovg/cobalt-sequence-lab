@@ -90,6 +90,35 @@ def test_api_key_auth_leaves_root_public():
     assert client.get("/").status_code == 200
 
 
+STUB_REQUESTS = [
+    ("post", "/foldrna", {"sequence": "GGGAAAUCC"}, "foldrna"),
+    ("post", "/run", {"pipeline": "name: demo"}, "run"),
+    ("get", "/runs", None, "runs list"),
+    ("get", "/runs/r1", None, "runs show"),
+]
+
+
+@pytest.mark.parametrize(("method", "path", "body", "command"), STUB_REQUESTS)
+def test_stub_endpoints_not_implemented(method, path, body, command):
+    client = TestClient(build_app())
+    resp = client.request(method, path, json=body)
+    assert resp.status_code == 501
+    assert resp.json() == {"detail": f"cobalt {command} is not implemented yet"}
+
+
+def test_foldrna_validates_body():
+    client = TestClient(build_app())
+    assert client.post("/foldrna", json={}).status_code == 422
+
+
+@pytest.mark.parametrize(("method", "path", "body", "command"), STUB_REQUESTS)
+def test_api_key_auth_guards_stub_endpoints(method, path, body, command):
+    client = TestClient(build_app(auth=ApiKeyAuth(["k1"])))
+    assert client.request(method, path, json=body).status_code == 401
+    resp = client.request(method, path, json=body, headers={"X-API-Key": "k1"})
+    assert resp.status_code == 501
+
+
 @pytest.fixture
 def uvicorn_calls(monkeypatch):
     """Record uvicorn.run calls instead of starting a server."""
