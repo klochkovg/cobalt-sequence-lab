@@ -253,7 +253,7 @@ Everything below about the server side describes the target behavior.
 Cobalt runs in one of two modes:
 
 - **local** (default): the command does the work in the current process, as it does today. No
-  network connections are made.
+  network connections are made. Functionality of pipelines is limited or purely synchronous.
 - **client-server**: one instance runs as the server (`cobalt serve`). Other instances run as
   clients: they send the work to the server and print or write the result as a local run would.
 
@@ -270,20 +270,15 @@ cobalt stats input.fasta --out stats.csv                      # stats.csv is wri
 cobalt --local stats input.fasta                              # local, even with COBALT_SERVER set
 ```
 
-| Control                       | Effect                                                        |
-| ----------------------------- | ------------------------------------------------------------- |
-| `--server URL`                | client mode, send the work to the cobalt server at `URL`      |
-| `--local`                     | local mode, overrides `COBALT_SERVER`                         |
-| `COBALT_SERVER=URL`           | client mode when neither `--server` nor `--local` is given    |
-| `COBALT_API_KEY=key`          | key sent as `X-API-Key` to a server running `--auth api-key`  |
+| Control              | Effect                                                       |
+| -------------------- | ------------------------------------------------------------ |
+| `--server URL`       | client mode, send the work to the cobalt server at `URL`     |
+| `--local`            | local mode, overrides `COBALT_SERVER`                        |
+| `COBALT_SERVER=URL`  | client mode when neither `--server` nor `--local` is given   |
+| `COBALT_API_KEY=key` | key sent as `X-API-Key` to a server running `--auth api-key` |
 
 Precedence: `--server` / `--local` → `COBALT_SERVER` → local. Like `-v`, the flags go before
 the command.
-
-Why these names: `--cobalt-url` repeats the program name (`cobalt --cobalt-url ...`), and
-`COBALT-URL` can't be set from a shell because a variable name can't contain `-`. `--server`
-matches `serve` on the other end, and `COBALT_SERVER` follows `COBALT_LOG_LEVEL` and
-`COBALT_API_KEYS`.
 
 Rules:
 
@@ -301,9 +296,10 @@ Rules:
 - `serve` and `help` always run locally and ignore `--server` and `COBALT_SERVER`.
 - `pipeline check` and `pipeline graph` only read the YAML, so they run locally in both modes.
 - Client mode starts with the commands the server already exposes (`stats`, `inspect`,
-  `validate`, `normalize`). `foldrna`, `run` and `runs` have stub endpoints (`POST /foldrna`,
-  `POST /run`, `GET /runs`, `GET /runs/{run_id}`) that answer 501 Not Implemented; until they
-  are implemented, these commands fail in client mode instead of running locally.
+  `validate`, `normalize`).
+
+  `foldrna`, `run` and `runs` are not implemented yet and have stub endpoints (`POST /foldrna`,
+  `POST /run`, `GET /runs`, `GET /runs/{run_id}`) that answer 501 Not Implemented
 
 ## Authentication for `serve` (microservice deployment)
 
@@ -359,21 +355,21 @@ Example: [`tests/test_data/pipeline_test_v1.yaml`](tests/test_data/pipeline_test
 
 ```yaml
 schema_version: 1
-pipeline: {name: fold-rna-from-fasta, version: 0.1.0, description: ...}
-params:                      # pipeline-level knobs: type + default
-  min_length: {type: int, default: 20}
-inputs:                      # named, typed entry points supplied at run time
-  sequences: {type: fasta}
+pipeline: { name: fold-rna-from-fasta, version: 0.1.0, description: ... }
+params: # pipeline-level knobs: type + default
+  min_length: { type: int, default: 20 }
+inputs: # named, typed entry points supplied at run time
+  sequences: { type: fasta }
 tasks:
   validate:
     type: validate
-    inputs: {file: "${inputs.sequences}"}
-    params: {min_length: "${params.min_length}"}
+    inputs: { file: "${inputs.sequences}" }
+    params: { min_length: "${params.min_length}" }
   normalize:
     type: normalize
     inputs:
       file: "${inputs.sequences}"
-      qc: "${tasks.validate.outputs.report}"   # this reference creates the edge
+      qc: "${tasks.validate.outputs.report}" # this reference creates the edge
 outputs:
   report: "${tasks.validate.outputs.report}"
 ```
