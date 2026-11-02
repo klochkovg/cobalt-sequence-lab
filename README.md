@@ -92,6 +92,7 @@ conda create -n biolab-dev -c conda-forge \
 
 ```bash
 cobalt inspect input.gb
+cobalt inspect input.gb --json --output-seq-number 5   # same summary as JSON (the REST API format)
 cobalt stats input.fasta --out stats.csv
 cobalt stats input.fasta --sort gc_fraction --desc   # also: id, length, ambiguity_fraction, invalid_char_count
 cobalt stats a.fasta b.gb.gz --out stats.csv   # several files, one table; source_file column says which
@@ -110,6 +111,16 @@ cobalt serve --cors                         # allow any origin (UI development)
 cobalt serve --cors http://localhost:5173   # allow specific origin(s)
 COBALT_API_KEYS=key1,key2 cobalt serve --host 0.0.0.0 --auth api-key   # require X-API-Key
 cobalt serve --host 0.0.0.0 --allow-no-auth   # no auth: a gateway or service mesh handles it
+```
+
+`POST /inspect` takes the file as a multipart upload (any format and compression `cobalt inspect`
+reads) with optional form fields `overview_only` and `output_seq_number`, and returns what
+`cobalt inspect --json` prints. An unreadable or unrecognized file gives 422 with the CLI's error
+message:
+
+```bash
+curl -F file=@input.gb.gz -F output_seq_number=5 http://127.0.0.1:8000/inspect
+curl -F file=@input.fasta -F overview_only=true http://127.0.0.1:8000/inspect
 ```
 
 # Logging

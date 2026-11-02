@@ -5,19 +5,25 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import logging
+import shutil
+import tempfile
 from collections.abc import Sequence
+from pathlib import Path
+from typing import Annotated
 
 import uvicorn
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
+from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from cobalt import __version__
 from cobalt.analysis.folding import DEFAULT_ADAPTER
-from cobalt.analysis.processor import process_records
+from cobalt.analysis.processor import InputFileError, load_file, process_records
 from cobalt.cli.serve_auth import AUTH_MODES, AuthDependency, build_auth
+from cobalt.io.sniff import sniff_compression
+from cobalt.model.inspect import InspectReport, build_inspect_report
 from cobalt.model.stats import StatsRow, build_stats_rows
 
 log = logging.getLogger(__name__)
@@ -50,6 +56,37 @@ def _not_implemented(command: str) -> HTTPException:
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail=f"cobalt {command} is not implemented yet",
     )
+
+
+# Name reported for an upload sent without a filename
+DEFAULT_UPLOAD_NAME = "upload"
+
+
+def inspect_upload(upload: UploadFile, overview_only: bool, limit: int | None) -> InspectReport:
+    """Inspect an uploaded file as `cobalt inspect` inspects a local one.
+
+    The upload is saved to a temporary file so format sniffing, decompression and parsing are
+    the CLI's own; the upload's filename replaces the temporary path in the report and in
+    errors. An unreadable or unrecognized file gives 422 with the CLI's error message.
+    """
+    name = upload.filename or DEFAULT_UPLOAD_NAME
+    with tempfile.TemporaryDirectory(prefix="cobalt-") as tmp_dir:
+        path = Path(tmp_dir) / "upload"
+        with path.open("wb") as tmp:
+            shutil.copyfileobj(upload.file, tmp)
+        try:
+            result = load_file(path)
+        except InputFileError as exc:
+            message = str(exc).replace(str(path), name)
+            log.info("inspect %s: %s", name, message)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=message
+            ) from exc
+        compression = sniff_compression(path)
+    if result is not None:
+        for record in result.records:
+            record.source_file = name
+    return build_inspect_report(name, result, compression, overview_only, limit)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -118,12 +155,14 @@ def build_app(
         records = primary_result.records if primary_result else []
         return build_stats_rows(records)
 
-    @api.post("/inspect", response_model=list[StatsRow])
-    async def inspect(body: SequenceRequest):
-        seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
-        primary_result = process_records([seq_record], "raw")
-        records = primary_result.records if primary_result else []
-        return build_stats_rows(records)
+    @api.post("/inspect", response_model=InspectReport)
+    def inspect(
+        file: UploadFile,
+        overview_only: Annotated[bool, Form()] = False,
+        output_seq_number: Annotated[int | None, Form(ge=0)] = None,
+    ) -> InspectReport:
+        # Sync handler: FastAPI runs it in a thread pool, so file I/O doesn't block the loop
+        return inspect_upload(file, overview_only, output_seq_number)
 
     @api.post("/validate", response_model=list[StatsRow])
     async def validate(body: SequenceRequest):

@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
+import sys
 from collections.abc import Iterable, Sequence
 from itertools import islice
 from pathlib import Path
 
 from cobalt.analysis.processor import InputFileError, load_file
 from cobalt.io.sniff import sniff_compression
+from cobalt.model.inspect import build_inspect_report
 from cobalt.model.record import AnalysisResult, SequenceRecord
 
 log = logging.getLogger(__name__)
@@ -78,6 +81,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="List only the first N records (default: all)",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the summary and records as JSON (the format of the REST API)",
+    )
     return parser
 
 
@@ -85,7 +93,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the inspect command.
 
     Detects the input format from the content (FASTA or GenBank, optionally gzip/bzip2
-    compressed), prints a summary of the file and then the records.
+    compressed), prints a summary of the file and then the records, as text or with --json
+    as JSON.
     """
     args = build_parser().parse_args(argv)
     path = Path(args.input)
@@ -95,6 +104,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     except InputFileError as exc:
         log.error("%s", exc)
         return 1
+    if args.json:
+        report = build_inspect_report(
+            str(path),
+            primary_result,
+            sniff_compression(path),
+            overview_only=args.overview_only,
+            limit=args.output_seq_number,
+        )
+        json.dump(report.to_dict(), sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 0
     if not primary_result:
         print(f"{path}: 0 records")
         return 0

@@ -15,6 +15,7 @@ dependencies:
   - pydantic
   - fastapi
   - uvicorn-standard
+  - python-multipart
   - httpx2
   - pytest
   - pytest-cov

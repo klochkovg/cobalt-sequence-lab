@@ -1,4 +1,5 @@
 import gzip
+import json
 from pathlib import Path
 
 import pytest
@@ -235,3 +236,67 @@ def test_inspect_fasta_has_no_quality_line(capsys):
 
     assert exit_code == 0
     assert "Quality" not in capsys.readouterr().out
+
+
+def run_json(capsys, *args):
+    """Run `cobalt inspect --json` and return the exit code and the parsed output."""
+    exit_code = main(["inspect", "--json", *args])
+    return exit_code, json.loads(capsys.readouterr().out)
+
+
+def test_inspect_json_genbank(capsys):
+    path = DATA_DIR / "ls_orchid.gbk"
+    exit_code, report = run_json(capsys, str(path))
+
+    assert exit_code == 0
+    assert report["file"] == str(path)
+    assert report["records_num"] == 94
+    assert report["format"] == "genbank"
+    assert report["compression"] is None
+    assert report["molecule_types"] == {"DNA": 94}
+    assert report["warning_counts"]["duplicate_id"] == 0
+    assert len(report["records"]) == 94
+    assert report["records"][0]["id"] == "Z78533.1"
+    assert report["records"][0]["organism"]
+
+
+def test_inspect_json_gzip(capsys, tmp_path):
+    path = tmp_path / "ls_orchid.gbk.gz"
+    path.write_bytes(gzip.compress((DATA_DIR / "ls_orchid.gbk").read_bytes()))
+    exit_code, report = run_json(capsys, str(path))
+
+    assert exit_code == 0
+    assert (report["format"], report["compression"]) == ("genbank", "gzip")
+
+
+def test_inspect_json_overview_only_and_limit(capsys):
+    path = str(DATA_DIR / "ls_orchid.fasta")
+    _, overview = run_json(capsys, "--overview-only", path)
+    _, limited = run_json(capsys, "--output-seq-number", "2", path)
+    _, full = run_json(capsys, path)
+
+    assert overview["records_num"] == 94
+    assert overview["records"] == []
+    assert limited["records_num"] == 94
+    assert limited["records"] == full["records"][:2]
+
+
+def test_inspect_json_warnings(capsys, tmp_path):
+    path = tmp_path / "dup.fasta"
+    path.write_text(">a\nACGT\n>a\nAC!T\n")
+    _, report = run_json(capsys, str(path))
+
+    assert report["warning_counts"]["duplicate_id"] == 1
+    assert report["warning_counts"]["invalid_characters"] == 1
+    assert {w["kind"] for w in report["warnings"]} == {"duplicate_id", "invalid_characters"}
+
+
+def test_inspect_json_empty_file(capsys, tmp_path):
+    path = tmp_path / "empty.fasta"
+    path.write_text("")
+    exit_code, report = run_json(capsys, str(path))
+
+    assert exit_code == 0
+    assert report["records_num"] == 0
+    assert report["format"] is None
+    assert report["records"] == []

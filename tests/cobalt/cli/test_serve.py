@@ -1,4 +1,6 @@
+import gzip
 import json
+from pathlib import Path
 
 import pytest
 import uvicorn
@@ -30,6 +32,110 @@ def test_stats_matches_cli_json(capsys):
     resp = TestClient(build_app()).post("/stats", json={"sequence": "MKVLAAGIC"})
     main(["stats", "--input", "MKVLAAGIC", "--json"])
     assert resp.json() == json.loads(capsys.readouterr().out)
+
+
+DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
+
+
+def post_inspect(client, path, filename=None, content=None, **form):
+    """POST `path` (or `content`) to /inspect as a multipart upload with form fields."""
+    body = content if content is not None else path.read_bytes()
+    files = {"file": (filename or path.name, body)}
+    return client.post("/inspect", files=files, data={k: str(v) for k, v in form.items()})
+
+
+@pytest.mark.parametrize(
+    ("name", "fmt", "records_num"),
+    [
+        ("ls_orchid.fasta", "fasta", 94),
+        ("ls_orchid.gbk", "genbank", 94),
+        ("sample.fastq", "fastq", 4),
+    ],
+)
+def test_inspect_upload_formats(name, fmt, records_num):
+    resp = post_inspect(TestClient(build_app()), DATA_DIR / name)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["file"] == name
+    assert body["format"] == fmt
+    assert body["compression"] is None
+    assert body["records_num"] == records_num
+    assert len(body["records"]) == records_num
+
+
+def test_inspect_upload_gzip():
+    content = gzip.compress((DATA_DIR / "ls_orchid.gbk").read_bytes())
+    resp = post_inspect(
+        TestClient(build_app()), DATA_DIR / "ls_orchid.gbk", "orchid.gbk.gz", content
+    )
+    assert resp.status_code == 200
+    assert (resp.json()["format"], resp.json()["compression"]) == ("genbank", "gzip")
+
+
+def test_inspect_overview_only_and_limit():
+    client = TestClient(build_app())
+    path = DATA_DIR / "ls_orchid.fasta"
+    overview = post_inspect(client, path, overview_only="true").json()
+    limited = post_inspect(client, path, output_seq_number=2).json()
+
+    assert overview["records_num"] == 94
+    assert overview["records"] == []
+    assert [r["id"] for r in limited["records"]] == [
+        "gi|2765658|emb|Z78533.1|CIZ78533",
+        "gi|2765657|emb|Z78532.1|CCZ78532",
+    ]
+
+
+def test_inspect_rejects_negative_limit():
+    resp = post_inspect(TestClient(build_app()), DATA_DIR / "ls_orchid.fasta", output_seq_number=-1)
+    assert resp.status_code == 422
+
+
+def test_inspect_unrecognized_file():
+    resp = post_inspect(TestClient(build_app()), DATA_DIR / "text_input.txt")
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert detail.startswith("text_input.txt: unrecognized format")
+    assert "cobalt-" not in detail
+
+
+def test_inspect_empty_upload():
+    resp = post_inspect(TestClient(build_app()), DATA_DIR / "x.fasta", "empty.fasta", b"")
+    assert resp.status_code == 200
+    assert resp.json()["records_num"] == 0
+    assert resp.json()["format"] is None
+
+
+def test_inspect_requires_file():
+    assert (
+        TestClient(build_app()).post("/inspect", data={"overview_only": "true"}).status_code == 422
+    )
+
+
+@pytest.mark.parametrize(
+    "args",
+    [[], ["--overview-only"], ["--output-seq-number", "3"]],
+)
+@pytest.mark.parametrize("name", ["ls_orchid.gbk", "sample.fastq"])
+def test_inspect_matches_cli_json(capsys, name, args):
+    path = DATA_DIR / name
+    form = {}
+    if "--overview-only" in args:
+        form["overview_only"] = "true"
+    if "--output-seq-number" in args:
+        form["output_seq_number"] = args[-1]
+    resp = post_inspect(TestClient(build_app()), path, filename=str(path), **form)
+    main(["inspect", "--json", *args, str(path)])
+    assert resp.json() == json.loads(capsys.readouterr().out)
+
+
+def test_api_key_auth_guards_inspect():
+    client = TestClient(build_app(auth=ApiKeyAuth(["k1"])))
+    path = DATA_DIR / "ls_orchid.fasta"
+    files = {"file": (path.name, path.read_bytes())}
+    assert client.post("/inspect", files=files).status_code == 401
+    resp = client.post("/inspect", files=files, headers={"X-API-Key": "k1"})
+    assert resp.status_code == 200
 
 
 PREFLIGHT_HEADERS = {
