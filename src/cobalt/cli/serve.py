@@ -8,6 +8,7 @@ import logging
 import shutil
 import tempfile
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -24,6 +25,8 @@ from cobalt.analysis.processor import InputFileError, load_file, process_records
 from cobalt.cli.serve_auth import AUTH_MODES, AuthDependency, build_auth
 from cobalt.io.sniff import sniff_compression
 from cobalt.model.inspect import InspectReport, build_inspect_report
+from cobalt.model.qc import QCReport, build_qc_report
+from cobalt.model.record import AnalysisResult
 from cobalt.model.stats import StatsRow, build_stats_rows
 
 log = logging.getLogger(__name__)
@@ -62,12 +65,21 @@ def _not_implemented(command: str) -> HTTPException:
 DEFAULT_UPLOAD_NAME = "upload"
 
 
-def inspect_upload(upload: UploadFile, overview_only: bool, limit: int | None) -> InspectReport:
-    """Inspect an uploaded file as `cobalt inspect` inspects a local one.
+@dataclass(slots=True)
+class LoadedUpload:
+    """An uploaded file read as `load_file` reads a local one."""
 
-    The upload is saved to a temporary file so format sniffing, decompression and parsing are
-    the CLI's own; the upload's filename replaces the temporary path in the report and in
-    errors. An unreadable or unrecognized file gives 422 with the CLI's error message.
+    name: str
+    result: AnalysisResult | None
+    compression: str | None
+
+
+def load_upload(upload: UploadFile, command: str) -> LoadedUpload:
+    """Read an uploaded file with the CLI's own format sniffing, decompression and parsing.
+
+    The upload is saved to a temporary file; its filename replaces the temporary path in
+    record `source_file`s and in errors. An unreadable or unrecognized file gives 422 with the
+    CLI's error message (logged with `command`).
     """
     name = upload.filename or DEFAULT_UPLOAD_NAME
     with tempfile.TemporaryDirectory(prefix="cobalt-") as tmp_dir:
@@ -78,7 +90,7 @@ def inspect_upload(upload: UploadFile, overview_only: bool, limit: int | None) -
             result = load_file(path)
         except InputFileError as exc:
             message = str(exc).replace(str(path), name)
-            log.info("inspect %s: %s", name, message)
+            log.info("%s %s: %s", command, name, message)
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=message
             ) from exc
@@ -86,7 +98,21 @@ def inspect_upload(upload: UploadFile, overview_only: bool, limit: int | None) -
     if result is not None:
         for record in result.records:
             record.source_file = name
-    return build_inspect_report(name, result, compression, overview_only, limit)
+    return LoadedUpload(name, result, compression)
+
+
+def inspect_upload(upload: UploadFile, overview_only: bool, limit: int | None) -> InspectReport:
+    """Inspect an uploaded file as `cobalt inspect --json` inspects a local one."""
+    loaded = load_upload(upload, "inspect")
+    return build_inspect_report(
+        loaded.name, loaded.result, loaded.compression, overview_only, limit
+    )
+
+
+def validate_upload(upload: UploadFile) -> QCReport:
+    """Validate an uploaded file as `cobalt validate --json` validates a local one."""
+    loaded = load_upload(upload, "validate")
+    return build_qc_report(loaded.name, loaded.result, loaded.compression)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -164,12 +190,9 @@ def build_app(
         # Sync handler: FastAPI runs it in a thread pool, so file I/O doesn't block the loop
         return inspect_upload(file, overview_only, output_seq_number)
 
-    @api.post("/validate", response_model=list[StatsRow])
-    async def validate(body: SequenceRequest):
-        seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
-        primary_result = process_records([seq_record], "raw")
-        records = primary_result.records if primary_result else []
-        return build_stats_rows(records)
+    @api.post("/validate", response_model=QCReport)
+    def validate(file: UploadFile) -> QCReport:
+        return validate_upload(file)
 
     @api.post("/normalize", response_model=list[StatsRow])
     async def normalize(body: SequenceRequest):

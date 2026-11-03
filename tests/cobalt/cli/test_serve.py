@@ -138,6 +138,92 @@ def test_api_key_auth_guards_inspect():
     assert resp.status_code == 200
 
 
+def post_validate(client, path, filename=None, content=None):
+    """POST `path` (or `content`) to /validate as a multipart upload."""
+    body = content if content is not None else path.read_bytes()
+    return client.post("/validate", files={"file": (filename or path.name, body)})
+
+
+@pytest.mark.parametrize(
+    ("name", "fmt", "records_num"),
+    [
+        ("ls_orchid.fasta", "fasta", 94),
+        ("ls_orchid.gbk", "genbank", 94),
+        ("sample.fastq", "fastq", 4),
+    ],
+)
+def test_validate_upload_formats(name, fmt, records_num):
+    resp = post_validate(TestClient(build_app()), DATA_DIR / name)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["file"] == name
+    assert body["format"] == fmt
+    assert body["compression"] is None
+    assert body["records_num"] == records_num
+    assert body["passed"] is True
+
+
+def test_validate_upload_gzip():
+    content = gzip.compress((DATA_DIR / "ls_orchid.fasta").read_bytes())
+    resp = post_validate(TestClient(build_app()), DATA_DIR / "x", "orchid.fasta.gz", content)
+    assert resp.status_code == 200
+    assert (resp.json()["format"], resp.json()["compression"]) == ("fasta", "gzip")
+
+
+def test_validate_upload_with_warnings():
+    content = b">s1\nACGT\n>s1\nAC!T\n"
+    resp = post_validate(TestClient(build_app()), DATA_DIR / "x", "bad.fasta", content)
+    body = resp.json()
+    assert body["passed"] is False
+    assert body["warning_counts"]["duplicate_id"] == 1
+    assert body["warning_counts"]["invalid_characters"] == 1
+    assert {w["kind"] for w in body["warnings"]} == {"duplicate_id", "invalid_characters"}
+
+
+def test_validate_unrecognized_file():
+    resp = post_validate(TestClient(build_app()), DATA_DIR / "text_input.txt")
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert detail.startswith("text_input.txt: unrecognized format")
+    assert "cobalt-" not in detail
+
+
+def test_validate_empty_upload():
+    resp = post_validate(TestClient(build_app()), DATA_DIR / "x", "empty.fasta", b"")
+    assert resp.status_code == 200
+    assert (resp.json()["records_num"], resp.json()["passed"]) == (0, True)
+
+
+def test_validate_requires_file():
+    assert TestClient(build_app()).post("/validate").status_code == 422
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        (DATA_DIR / "ls_orchid.gbk").read_bytes(),
+        (DATA_DIR / "sample.fastq").read_bytes(),
+        b">s1\nACGT\n>s1\nAC!T\n",  # duplicate ID and invalid characters
+    ],
+    ids=["genbank", "fastq", "warnings"],
+)
+def test_validate_matches_cli_json(capsys, tmp_path, content):
+    path = tmp_path / "input"
+    path.write_bytes(content)
+    resp = post_validate(TestClient(build_app()), path, filename=str(path))
+    main(["validate", "--json", str(path)])
+    assert resp.json() == json.loads(capsys.readouterr().out)
+
+
+def test_api_key_auth_guards_validate():
+    client = TestClient(build_app(auth=ApiKeyAuth(["k1"])))
+    path = DATA_DIR / "ls_orchid.fasta"
+    files = {"file": (path.name, path.read_bytes())}
+    assert client.post("/validate", files=files).status_code == 401
+    resp = client.post("/validate", files=files, headers={"X-API-Key": "k1"})
+    assert resp.status_code == 200
+
+
 PREFLIGHT_HEADERS = {
     "Origin": "http://localhost:5173",
     "Access-Control-Request-Method": "POST",

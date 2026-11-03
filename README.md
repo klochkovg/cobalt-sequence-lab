@@ -102,7 +102,8 @@ cobalt stats input.gb --format json --out stats.txt   # --format overrides the e
 cobalt stats reads.fastq.gz --sort mean_quality   # FASTQ adds mean_quality, min_quality, q30_fraction
 cobalt normalize input.gb --fasta cleaned.fasta
 cobalt normalize reads.fastq --fastq cleaned.fastq   # qualities kept
-cobalt validate input.fasta --report qc.json
+cobalt validate input.fasta --report qc.json   # JSON QC report: passed, warning counts, warnings
+cobalt validate input.fasta --json             # the same report on stdout (the REST API format)
 cobalt foldrna input.fasta                  # RNAfold-style: >id, sequence, dot-bracket (MFE)
 cobalt foldrna --input GGGAAAUCC --adapter viennarna   # viennarna is the default (and only) adapter
 # foldrna needs: pip install "cobalt-sequence-lab[rna]"
@@ -121,6 +122,13 @@ message:
 ```bash
 curl -F file=@input.gb.gz -F output_seq_number=5 http://127.0.0.1:8000/inspect
 curl -F file=@input.fasta -F overview_only=true http://127.0.0.1:8000/inspect
+```
+
+`POST /validate` takes the same `file` upload and returns the QC report `cobalt validate --json`
+prints:
+
+```bash
+curl -F file=@input.fasta http://127.0.0.1:8000/validate
 ```
 
 # Logging

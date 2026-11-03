@@ -1,4 +1,5 @@
 import bz2
+import json
 from pathlib import Path
 
 import pytest
@@ -149,3 +150,92 @@ def test_validate_without_warnings_flag_prints_stats(capsys, tmp_path):
     assert exit_code == 0
     assert out.startswith("id,length")
     assert "warning:" not in out
+
+
+def run_json(capsys, *args) -> tuple[int, dict]:
+    """Run `cobalt validate --json` and return the exit code and the parsed report."""
+    exit_code = main(["validate", "--json", *args])
+    return exit_code, json.loads(capsys.readouterr().out)
+
+
+def test_validate_json_clean_file(capsys):
+    path = DATA_DIR / "ls_orchid.fasta"
+    exit_code, report = run_json(capsys, str(path))
+
+    assert exit_code == 0
+    assert report["file"] == str(path)
+    assert report["records_num"] == 94
+    assert report["format"] == "fasta"
+    assert report["compression"] is None
+    assert report["passed"] is True
+    assert report["warnings"] == []
+
+
+def test_validate_json_warnings(capsys, tmp_path):
+    path = write_fasta(tmp_path / "bad.fasta", [("seq1", "ACGT"), ("seq1", "AC!T"), ("seq2", "")])
+    exit_code, report = run_json(capsys, str(path))
+
+    assert exit_code == 0
+    assert report["passed"] is False
+    assert report["warning_counts"] == {
+        "duplicate_id": 1,
+        "empty_sequence": 1,
+        "invalid_characters": 1,
+        "undefined_sequence": 0,
+    }
+    assert [w["record_id"] for w in report["warnings"]] == ["seq1", "seq1", "seq2"]
+
+
+def test_validate_json_bzip2(capsys, tmp_path):
+    path = tmp_path / "ls_orchid.gbk.bz2"
+    path.write_bytes(bz2.compress((DATA_DIR / "ls_orchid.gbk").read_bytes()))
+    _, report = run_json(capsys, str(path))
+
+    assert (report["format"], report["compression"]) == ("genbank", "bzip2")
+
+
+def test_validate_json_empty_file(capsys, tmp_path):
+    path = tmp_path / "empty.fasta"
+    path.write_text("")
+    exit_code, report = run_json(capsys, str(path))
+
+    assert exit_code == 0
+    assert report["records_num"] == 0
+    assert report["format"] is None
+    assert report["passed"] is True
+
+
+def test_validate_report_file_matches_json(capsys, tmp_path):
+    path = write_fasta(tmp_path / "dup.fasta", [("seq1", "ACGT"), ("seq1", "GGCC")])
+    report_path = tmp_path / "qc.json"
+
+    exit_code = main(["validate", str(path), "--report", str(report_path)])
+    assert exit_code == 0
+    assert capsys.readouterr().out == ""
+    _, printed = run_json(capsys, str(path))
+    assert json.loads(report_path.read_text()) == printed
+
+
+def test_validate_report_with_warnings_flag(capsys, tmp_path):
+    path = write_fasta(tmp_path / "dup.fasta", [("seq1", "ACGT"), ("seq1", "GGCC")])
+    report_path = tmp_path / "qc.json"
+
+    exit_code = main(["validate", "--warnings", "--report", str(report_path), str(path)])
+
+    assert exit_code == 0
+    assert "1 warning(s) found" in capsys.readouterr().out
+    assert json.loads(report_path.read_text())["passed"] is False
+
+
+def test_validate_report_to_directory(caplog, tmp_path):
+    path = write_fasta(tmp_path / "ok.fasta", [("seq1", "ACGT")])
+
+    assert main(["validate", str(path), "--report", str(tmp_path)]) == 1
+    assert "--report is a directory" in caplog.text
+
+
+def test_validate_report_missing_directory(caplog, tmp_path):
+    path = write_fasta(tmp_path / "ok.fasta", [("seq1", "ACGT")])
+
+    assert main(["validate", str(path), "--report", str(tmp_path / "no" / "qc.json")]) == 1
+    assert "no such directory for --report" in caplog.text
