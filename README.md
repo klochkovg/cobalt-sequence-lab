@@ -131,6 +131,23 @@ prints:
 curl -F file=@input.fasta http://127.0.0.1:8000/validate
 ```
 
+`POST /stats` takes one or more `file` uploads, or a `sequence` form field instead (like
+`--input`), with optional form fields `sort` and `desc`, and returns what `cobalt stats --json`
+prints. Any unreadable upload fails the whole request with 422:
+
+```bash
+curl -F file=@reads.fastq.gz -F file=@input.gb -F sort=length -F desc=true http://127.0.0.1:8000/stats
+curl -F sequence=AGCGCA http://127.0.0.1:8000/stats
+```
+
+`POST /normalize` takes the same `file` upload and an optional `format` form field (`fasta`, the
+default, `genbank` or `fastq`) and returns the normalized file as text, as `cobalt normalize`
+would write it with `--fasta`, `--genbank` or `--fastq`:
+
+```bash
+curl -F file=@input.gb -F format=fasta http://127.0.0.1:8000/normalize > cleaned.fasta
+```
+
 # Logging
 
 Cobalt separates **results** from **diagnostics**:

@@ -8,11 +8,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from Bio import SeqIO
-from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from cobalt.analysis.normalize import genbank_locus_name, uppercase_result
-from cobalt.analysis.processor import InputFileError, decode_quality, load_file
+from cobalt.analysis.normalize import OutputFormat, build_seq_records, records_for_format
+from cobalt.analysis.processor import InputFileError, load_file
 
 log = logging.getLogger(__name__)
 
@@ -65,55 +64,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         log.warning("%s: 0 records", data_file_path)
         return 0
 
-    records = uppercase_result(primary_result.records)
-    undefined = [record.id for record in records if record.sequence is None]
-    if undefined:
-        log.warning(
-            "skipping %d record(s) with no sequence content: %s",
-            len(undefined),
-            ", ".join(undefined),
-        )
-    seq_records = [
-        SeqRecord(
-            Seq(record.sequence),
-            id=record.id,
-            # Used for the GenBank LOCUS line, which only fits 16 characters
-            name=genbank_locus_name(record.id),
-            description=record.description,
-            # GenBank output requires molecule_type; FASTA ignores it
-            annotations={"molecule_type": record.molecule_type or record.type},
-            # FASTQ output requires phred_quality; FASTA and GenBank ignore it
-            letter_annotations=(
-                {"phred_quality": decode_quality(record.quality)}
-                if record.quality is not None
-                else None
-            ),
-        )
-        for record in records
-        if record.sequence is not None
+    seq_records = build_seq_records(primary_result.records)
+    outputs: list[tuple[str | None, OutputFormat]] = [
+        (args.fasta, "fasta"),
+        (args.genbank, "genbank"),
+        (args.fastq, "fastq"),
     ]
-    if args.fasta and not write_records(args.fasta, seq_records, "fasta"):
-        return 1
-    if args.genbank:
-        shortened = sum(1 for seq_record in seq_records if seq_record.name != seq_record.id)
-        if shortened:
-            log.info("%d ID(s) too long for GenBank LOCUS, shortened to accessions", shortened)
-        if not write_records(args.genbank, seq_records, "genbank"):
-            return 1
-    if args.fastq:
-        with_quality = [r for r in seq_records if "phred_quality" in r.letter_annotations]
-        no_quality = [
-            record.id
-            for record in records
-            if record.sequence is not None and record.quality is None
-        ]
-        if no_quality:
-            log.warning(
-                "skipping %d record(s) with no qualities for FASTQ: %s",
-                len(no_quality),
-                ", ".join(no_quality),
-            )
-        if not write_records(args.fastq, with_quality, "fastq"):
+    for path, fmt in outputs:
+        if path and not write_records(path, records_for_format(seq_records, fmt), fmt):
             return 1
     return 0
 

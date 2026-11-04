@@ -15,32 +15,29 @@ from typing import Annotated
 import uvicorn
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from fastapi import APIRouter, Depends, FastAPI, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from cobalt import __version__
 from cobalt.analysis.folding import DEFAULT_ADAPTER
+from cobalt.analysis.normalize import OutputFormat, build_seq_records, format_records
 from cobalt.analysis.processor import InputFileError, load_file, process_records
 from cobalt.cli.serve_auth import AUTH_MODES, AuthDependency, build_auth
 from cobalt.io.sniff import sniff_compression
 from cobalt.model.inspect import InspectReport, build_inspect_report
 from cobalt.model.qc import QCReport, build_qc_report
-from cobalt.model.record import AnalysisResult
-from cobalt.model.stats import StatsRow, build_stats_rows
+from cobalt.model.record import AnalysisResult, SequenceRecord
+from cobalt.model.stats import SortKey, StatsRow, build_stats_rows
 
 log = logging.getLogger(__name__)
 
 
-class SequenceRequest(BaseModel):
-    """Request body for manual sequence input."""
-
-    sequence: str
-
-
-class FoldRequest(SequenceRequest):
+class FoldRequest(BaseModel):
     """Request body for RNA folding of a manual sequence input."""
 
+    sequence: str
     adapter: str = DEFAULT_ADAPTER
 
 
@@ -115,6 +112,54 @@ def validate_upload(upload: UploadFile) -> QCReport:
     return build_qc_report(loaded.name, loaded.result, loaded.compression)
 
 
+def stats_rows(
+    uploads: Sequence[UploadFile] | None,
+    sequence: str | None,
+    sort: SortKey | None,
+    descending: bool,
+) -> list[StatsRow]:
+    """Build stats rows as `cobalt stats --json` does, from uploaded files or a direct sequence.
+
+    Exactly one of `uploads` and `sequence` must be given (422 otherwise), as the CLI's
+    `input` and `--input` are mutually exclusive. Any unreadable upload fails the request.
+    """
+    if bool(uploads) == (sequence is not None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="give either file uploads or a sequence, not both",
+        )
+    records: list[SequenceRecord] = []
+    if sequence is not None:
+        primary_result = process_records([SeqRecord(Seq(sequence), id="direct_input")], "raw")
+        if primary_result is not None:
+            records.extend(primary_result.records)
+    else:
+        for upload in uploads or []:
+            loaded = load_upload(upload, "stats")
+            if loaded.result is not None:
+                records.extend(loaded.result.records)
+    return build_stats_rows(records, sort=sort, descending=descending)
+
+
+def normalize_upload(upload: UploadFile, fmt: OutputFormat) -> str:
+    """Normalize an uploaded file as `cobalt normalize` does, returning the `fmt` file text.
+
+    An upload with no records gives an empty text, as the CLI then writes no file. A record
+    Biopython can't write in `fmt` gives 422.
+    """
+    loaded = load_upload(upload, "normalize")
+    if loaded.result is None:
+        return ""
+    try:
+        return format_records(build_seq_records(loaded.result.records), fmt)
+    except ValueError as exc:
+        message = f"{loaded.name}: could not write {fmt}: {exc}"
+        log.info("normalize %s", message)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=message
+        ) from exc
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build parser for serve command."""
     parser = argparse.ArgumentParser(prog="cobalt serve")
@@ -175,11 +220,14 @@ def build_app(
         return {"title": "Cobalt Sequence Lab", "version": __version__}
 
     @api.post("/stats", response_model=list[StatsRow])
-    async def stats(body: SequenceRequest):
-        seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
-        primary_result = process_records([seq_record], "raw")
-        records = primary_result.records if primary_result else []
-        return build_stats_rows(records)
+    def stats(
+        file: Annotated[list[UploadFile] | None, File()] = None,
+        sequence: Annotated[str | None, Form()] = None,
+        sort: Annotated[SortKey | None, Form()] = None,
+        desc: Annotated[bool, Form()] = False,
+    ) -> list[StatsRow]:
+        # Sync handler: FastAPI runs it in a thread pool, so file I/O doesn't block the loop
+        return stats_rows(file, sequence, sort, desc)
 
     @api.post("/inspect", response_model=InspectReport)
     def inspect(
@@ -194,12 +242,12 @@ def build_app(
     def validate(file: UploadFile) -> QCReport:
         return validate_upload(file)
 
-    @api.post("/normalize", response_model=list[StatsRow])
-    async def normalize(body: SequenceRequest):
-        seq_record = SeqRecord(Seq(body.sequence), id="direct_input")
-        primary_result = process_records([seq_record], "raw")
-        records = primary_result.records if primary_result else []
-        return build_stats_rows(records)
+    @api.post("/normalize", response_class=PlainTextResponse)
+    def normalize(
+        file: UploadFile,
+        fmt: Annotated[OutputFormat, Form(alias="format")] = "fasta",
+    ) -> PlainTextResponse:
+        return PlainTextResponse(normalize_upload(file, fmt))
 
     @api.post("/foldrna")
     async def foldrna(body: FoldRequest):

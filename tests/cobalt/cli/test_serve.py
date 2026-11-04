@@ -20,21 +20,89 @@ def test_root():
     assert resp.json() == {"title": "Cobalt Sequence Lab", "version": __version__}
 
 
-def test_stats():
-    client = TestClient(build_app())
-    resp = client.post("/stats", json={"sequence": "ACGT"})
+DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
+
+
+def upload(path, filename=None, content=None):
+    """Return a multipart `file` entry for `path` (or `content`)."""
+    body = content if content is not None else path.read_bytes()
+    return ("file", (filename or path.name, body))
+
+
+def test_stats_sequence():
+    resp = TestClient(build_app()).post("/stats", data={"sequence": "ACGT"})
     assert resp.status_code == 200
     body = resp.json()
     assert body[0]["length"] == 4
+    assert body[0]["source_file"] is None
 
 
-def test_stats_matches_cli_json(capsys):
-    resp = TestClient(build_app()).post("/stats", json={"sequence": "MKVLAAGIC"})
+def test_stats_sequence_matches_cli_json(capsys):
+    resp = TestClient(build_app()).post("/stats", data={"sequence": "MKVLAAGIC"})
     main(["stats", "--input", "MKVLAAGIC", "--json"])
     assert resp.json() == json.loads(capsys.readouterr().out)
 
 
-DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
+def test_stats_uploads():
+    files = [upload(DATA_DIR / "sample.fastq"), upload(DATA_DIR / "ls_orchid.gbk")]
+    resp = TestClient(build_app()).post("/stats", files=files)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 4 + 94
+    assert {row["source_file"] for row in body} == {"sample.fastq", "ls_orchid.gbk"}
+    assert body[0]["mean_quality"] is not None
+
+
+def test_stats_upload_gzip():
+    content = gzip.compress((DATA_DIR / "ls_orchid.fasta").read_bytes())
+    files = [upload(DATA_DIR / "x", "orchid.fasta.gz", content)]
+    resp = TestClient(build_app()).post("/stats", files=files)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 94
+
+
+@pytest.mark.parametrize(
+    "args",
+    [[], ["--sort", "length"], ["--sort", "mean_quality", "--desc"]],
+)
+def test_stats_uploads_match_cli_json(capsys, args):
+    paths = [DATA_DIR / "sample.fastq", DATA_DIR / "ls_orchid.fasta"]
+    form = {}
+    if "--sort" in args:
+        form["sort"] = args[1]
+    if "--desc" in args:
+        form["desc"] = "true"
+    files = [upload(path, str(path)) for path in paths]
+    resp = TestClient(build_app()).post("/stats", files=files, data=form)
+    main(["stats", "--json", *args, *map(str, paths)])
+    assert resp.json() == json.loads(capsys.readouterr().out)
+
+
+def test_stats_empty_upload():
+    files = [upload(DATA_DIR / "x", "empty.fasta", b"")]
+    resp = TestClient(build_app()).post("/stats", files=files)
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_stats_unrecognized_upload_fails_request():
+    files = [upload(DATA_DIR / "ls_orchid.fasta"), upload(DATA_DIR / "text_input.txt")]
+    resp = TestClient(build_app()).post("/stats", files=files)
+    assert resp.status_code == 422
+    assert resp.json()["detail"].startswith("text_input.txt: unrecognized format")
+
+
+def test_stats_needs_exactly_one_source():
+    client = TestClient(build_app())
+    assert client.post("/stats").status_code == 422
+    files = [upload(DATA_DIR / "ls_orchid.fasta")]
+    resp = client.post("/stats", files=files, data={"sequence": "ACGT"})
+    assert resp.status_code == 422
+
+
+def test_stats_rejects_unknown_sort():
+    resp = TestClient(build_app()).post("/stats", data={"sequence": "ACGT", "sort": "bogus"})
+    assert resp.status_code == 422
 
 
 def post_inspect(client, path, filename=None, content=None, **form):
@@ -224,6 +292,84 @@ def test_api_key_auth_guards_validate():
     assert resp.status_code == 200
 
 
+def post_normalize(client, path, filename=None, content=None, **form):
+    """POST `path` (or `content`) to /normalize as a multipart upload with form fields."""
+    return client.post("/normalize", files=[upload(path, filename, content)], data=form)
+
+
+@pytest.mark.parametrize(
+    ("name", "fmt"),
+    [
+        ("ls_orchid.gbk", "fasta"),
+        ("ls_orchid.fasta", "genbank"),
+        ("sample.fastq", "fastq"),
+        ("sample.fastq", "fasta"),
+    ],
+)
+def test_normalize_matches_cli_output(tmp_path, name, fmt):
+    path = DATA_DIR / name
+    resp = post_normalize(TestClient(build_app()), path, format=fmt)
+    out = tmp_path / f"out.{fmt}"
+    assert main(["normalize", str(path), f"--{fmt}", str(out)]) == 0
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/plain")
+    assert resp.text == out.read_text()
+
+
+def test_normalize_defaults_to_uppercase_fasta():
+    content = b">s1 lower\nacgtn\n"
+    resp = post_normalize(TestClient(build_app()), DATA_DIR / "x", "s.fasta", content)
+    assert resp.status_code == 200
+    assert resp.text == ">s1 lower\nACGTN\n"
+
+
+def test_normalize_gzip_upload():
+    content = gzip.compress((DATA_DIR / "sample.fastq").read_bytes())
+    client = TestClient(build_app())
+    resp = post_normalize(client, DATA_DIR / "x", "reads.fastq.gz", content, format="fastq")
+    assert resp.status_code == 200
+    assert resp.text.count("@read") == 4
+
+
+def test_normalize_fastq_skips_records_without_quality(caplog):
+    content = b">seq1\nACGT\n"
+    client = TestClient(build_app())
+    resp = post_normalize(client, DATA_DIR / "x", "s.fasta", content, format="fastq")
+    assert resp.status_code == 200
+    assert resp.text == ""
+    assert "skipping 1 record(s) with no qualities for FASTQ: seq1" in caplog.text
+
+
+def test_normalize_empty_upload():
+    resp = post_normalize(TestClient(build_app()), DATA_DIR / "x", "empty.fasta", b"")
+    assert resp.status_code == 200
+    assert resp.text == ""
+
+
+def test_normalize_unrecognized_file():
+    resp = post_normalize(TestClient(build_app()), DATA_DIR / "text_input.txt")
+    assert resp.status_code == 422
+    assert resp.json()["detail"].startswith("text_input.txt: unrecognized format")
+
+
+def test_normalize_rejects_unknown_format():
+    client = TestClient(build_app())
+    resp = post_normalize(client, DATA_DIR / "ls_orchid.fasta", format="embl")
+    assert resp.status_code == 422
+
+
+def test_normalize_requires_file():
+    assert TestClient(build_app()).post("/normalize", data={"format": "fasta"}).status_code == 422
+
+
+def test_api_key_auth_guards_normalize():
+    client = TestClient(build_app(auth=ApiKeyAuth(["k1"])))
+    files = [upload(DATA_DIR / "ls_orchid.fasta")]
+    assert client.post("/normalize", files=files).status_code == 401
+    resp = client.post("/normalize", files=files, headers={"X-API-Key": "k1"})
+    assert resp.status_code == 200
+
+
 PREFLIGHT_HEADERS = {
     "Origin": "http://localhost:5173",
     "Access-Control-Request-Method": "POST",
@@ -270,11 +416,11 @@ def test_api_key_auth_guards_processing_endpoints():
     client = TestClient(build_app(auth=ApiKeyAuth(["k1"])))
     body = {"sequence": "ACGT"}
 
-    resp = client.post("/stats", json=body)
+    resp = client.post("/stats", data=body)
     assert resp.status_code == 401
     assert resp.headers["www-authenticate"] == "ApiKey"
-    assert client.post("/stats", json=body, headers={"X-API-Key": "wrong"}).status_code == 401
-    assert client.post("/stats", json=body, headers={"X-API-Key": "k1"}).status_code == 200
+    assert client.post("/stats", data=body, headers={"X-API-Key": "wrong"}).status_code == 401
+    assert client.post("/stats", data=body, headers={"X-API-Key": "k1"}).status_code == 200
 
 
 def test_api_key_auth_leaves_root_public():
@@ -347,6 +493,6 @@ def test_main_api_key(monkeypatch, uvicorn_calls):
     ((app, kwargs),) = uvicorn_calls
     assert kwargs["host"] == "0.0.0.0"
     client = TestClient(app)
-    assert client.post("/stats", json={"sequence": "ACGT"}).status_code == 401
-    resp = client.post("/stats", json={"sequence": "ACGT"}, headers={"X-API-Key": "k1"})
+    assert client.post("/stats", data={"sequence": "ACGT"}).status_code == 401
+    resp = client.post("/stats", data={"sequence": "ACGT"}, headers={"X-API-Key": "k1"})
     assert resp.status_code == 200
