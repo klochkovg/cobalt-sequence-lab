@@ -212,7 +212,8 @@ cobalt -q serve                                # hide access logs, keep errors
 In a container or under systemd, leave the output on stderr and let the platform collect it
 (`docker logs`, `journalctl`, cloud logging agents). Set `COBALT_LOG_FORMAT=plain` explicitly if
 the platform allocates a TTY (e.g. `docker run -t`), because rich output wraps long lines at the
-terminal width, which breaks one-event-per-line log parsing.
+terminal width, which breaks one-event-per-line log parsing. The Docker image already sets
+`COBALT_LOG_FORMAT=plain` (see [Running in Docker](#running-in-docker)).
 
 # some use (I'm not a seasoned Python programmer, so some strange things are possible)
 
@@ -363,6 +364,41 @@ Modes:
 Deployment path: `api-key` now → `jwt` once an identity provider exists → a service mesh
 (Istio, Linkerd) providing mTLS between services, with the JWT saying who is calling and what
 they may do.
+
+## Running in Docker
+
+The `Dockerfile` at the repository root builds one image with the package and its `serve`
+dependencies (installed with pip from `pyproject.toml`; the conda environment is for development
+only). The entry point is `cobalt`, and by default the image runs
+`cobalt serve --host 0.0.0.0 --port 8000 --auth api-key`.
+
+```bash
+make docker-build                              # tags cobalt-sequence-lab:<version> and :latest
+
+# Server: API keys come from the environment at runtime and are never baked into the image
+COBALT_API_KEYS=my-key make docker-run
+docker run --rm -p 8000:8000 -e COBALT_API_KEYS=key1,key2 cobalt-sequence-lab
+curl -H "X-API-Key: key1" -F file=@seqs.fasta http://127.0.0.1:8000/stats
+
+# Behind a gateway or service mesh that authenticates: override the command
+docker run --rm -p 8000:8000 cobalt-sequence-lab serve --host 0.0.0.0 --allow-no-auth
+
+# CLI: any other command runs once; mount the input files to /data (the working directory)
+docker run --rm -v "$PWD:/data" cobalt-sequence-lab stats seqs.fasta
+```
+
+Notes:
+
+- Without `COBALT_API_KEYS` the default command exits with an error instead of serving
+  unauthenticated.
+- Logs are plain text on stderr; read them with `docker logs` or the platform's log collector.
+- `HEALTHCHECK` polls `GET /`, which is public, so liveness probes need no API key.
+- The server runs as the unprivileged user `cobalt` (uid 10001). Uploads are written to a
+  temporary directory under `/tmp`, so with `--read-only` also mount `--tmpfs /tmp`.
+- RNA folding (ViennaRNA, the `rna` extra) is not in the image yet; it will be added when
+  `/foldrna` is implemented.
+- CI (`docker` job in `.github/workflows/ci.yml`) builds the image and smoke-tests the server, the
+  API-key check and CLI mode.
 
 ## Pipelining (partially implemented)
 

@@ -31,3 +31,53 @@ jobs:
 
       - name: Test
         run: pytest --cov=cobalt
+
+  docker:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: cobalt:ci
+      API_KEY: ci-test-key
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t "$IMAGE" .
+
+      - name: Start server
+        run: docker run -d --name cobalt -p 8000:8000 -e COBALT_API_KEYS="$API_KEY" "$IMAGE"
+
+      - name: Wait for server
+        run: |
+          for _ in $(seq 30); do
+            if curl -fsS http://127.0.0.1:8000/ -o root.json; then
+              cat root.json
+              grep -q '"version"' root.json
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "server did not answer within 30 s" >&2
+          exit 1
+
+      - name: Processing endpoints require an API key
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -F file=@tests/test_data/ls_orchid.fasta http://127.0.0.1:8000/stats)
+          test "$code" = 401
+          curl -fsS -H "X-API-Key: $API_KEY" \
+            -F file=@tests/test_data/ls_orchid.fasta http://127.0.0.1:8000/stats > /dev/null
+
+      - name: CLI mode
+        run: |
+          docker run --rm -v "$PWD/tests/test_data:/data:ro" "$IMAGE" stats ls_orchid.fasta
+
+      - name: Server refuses to start without API keys
+        run: |
+          if docker run --rm "$IMAGE"; then
+            echo "server started without COBALT_API_KEYS" >&2
+            exit 1
+          fi
+
+      - name: Server logs
+        if: always()
+        run: docker logs cobalt || true
