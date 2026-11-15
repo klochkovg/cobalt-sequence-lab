@@ -114,6 +114,14 @@ def format_records(seq_records: list[SeqRecord], fmt: OutputFormat) -> str:
 
     Raises ValueError if Biopython can't write a record in this format.
     """
+    return write_records_text(records_for_format(seq_records, fmt), fmt)
+
+
+def write_records_text(seq_records: list[SeqRecord], fmt: OutputFormat) -> str:
+    """Return all of `seq_records` written as `fmt`, with no filtering.
+
+    Raises ValueError if Biopython can't write a record in this format.
+    """
     buffer = io.StringIO()
-    SeqIO.write(records_for_format(seq_records, fmt), buffer, fmt)
+    SeqIO.write(seq_records, buffer, fmt)
     return buffer.getvalue()

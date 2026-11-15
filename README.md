@@ -112,40 +112,58 @@ cobalt serve --cors                         # allow any origin (UI development)
 cobalt serve --cors http://localhost:5173   # allow specific origin(s)
 COBALT_API_KEYS=key1,key2 cobalt serve --host 0.0.0.0 --auth api-key   # require X-API-Key
 cobalt serve --host 0.0.0.0 --allow-no-auth   # no auth: a gateway or service mesh handles it
+cobalt serve --api-prefix ""                # pre-0.2.0 paths, without the /api prefix
+cobalt serve --max-upload-mb 500            # request body limit (default 100, 0 for none)
+cobalt serve --ui-dist ../cobalt-sequence-lab-ui/dist   # also serve the built UI at /
 ```
 
-`POST /inspect` takes the file as a multipart upload (any format and compression `cobalt inspect`
-reads) with optional form fields `overview_only` and `output_seq_number`, and returns what
-`cobalt inspect --json` prints. An unreadable or unrecognized file gives 422 with the CLI's error
-message:
+Every endpoint is served under `/api` (`--api-prefix` changes it; `""` removes it): `GET /api/`
+returns the title and version, `GET /api/health` returns `{"status": "ok"}` (both public, also with
+`--auth api-key`), and the OpenAPI schema and Swagger UI are at `/api/openapi.json` and `/api/docs`.
+Errors are JSON `{"detail": ...}`, including unexpected ones (500). A request body over
+`--max-upload-mb` MiB, or a compressed upload expanding to more than 10 times that, gives 413.
+With `--ui-dist`, the UI's static files are served at `/`, and other HTML requests outside the API
+prefix get its `index.html` (client-side routes).
+
+`POST /api/inspect` takes the file as a multipart upload (any format and compression
+`cobalt inspect` reads) with optional form fields `overview_only` and `output_seq_number`, and
+returns what `cobalt inspect --json` prints. For paging, `offset` skips records before the listing
+(`records_offset` in the response), `include_sequence=false` leaves out sequences, and
+`max_warnings` caps the `warnings` list (`warnings_truncated` says whether it was cut; counts and
+statistics always describe the whole file). An unreadable or unrecognized file gives 422 with the
+CLI's error message:
 
 ```bash
-curl -F file=@input.gb.gz -F output_seq_number=5 http://127.0.0.1:8000/inspect
-curl -F file=@input.fasta -F overview_only=true http://127.0.0.1:8000/inspect
+curl -F file=@input.gb.gz -F output_seq_number=5 http://127.0.0.1:8000/api/inspect
+curl -F file=@input.fasta -F overview_only=true http://127.0.0.1:8000/api/inspect
 ```
 
-`POST /validate` takes the same `file` upload and returns the QC report `cobalt validate --json`
-prints:
+`POST /api/validate` takes the same `file` upload (and optional `max_warnings`) and returns the
+QC report `cobalt validate --json` prints. An `invalid_characters` warning has `details`: the
+distinct characters, their count and the 1-based positions of the first 10 (`null` for other kinds):
 
 ```bash
-curl -F file=@input.fasta http://127.0.0.1:8000/validate
+curl -F file=@input.fasta http://127.0.0.1:8000/api/validate
 ```
 
-`POST /stats` takes one or more `file` uploads, or a `sequence` form field instead (like
-`--input`), with optional form fields `sort` and `desc`, and returns what `cobalt stats --json`
-prints. Any unreadable upload fails the whole request with 422:
+`POST /api/stats` takes one or more `file` uploads, or a `sequence` form field instead (like
+`--input`; whitespace inside it is removed), with optional form fields `sort` and `desc`, and
+returns what `cobalt stats --json` prints. Sending both or neither gives a field-level 422. Any
+unreadable upload fails the whole request with 422:
 
 ```bash
-curl -F file=@reads.fastq.gz -F file=@input.gb -F sort=length -F desc=true http://127.0.0.1:8000/stats
-curl -F sequence=AGCGCA http://127.0.0.1:8000/stats
+curl -F file=@reads.fastq.gz -F file=@input.gb -F sort=length -F desc=true http://127.0.0.1:8000/api/stats
+curl -F sequence=AGCGCA http://127.0.0.1:8000/api/stats
 ```
 
-`POST /normalize` takes the same `file` upload and an optional `format` form field (`fasta`, the
-default, `genbank` or `fastq`) and returns the normalized file as text, as `cobalt normalize`
-would write it with `--fasta`, `--genbank` or `--fastq`:
+`POST /api/normalize` takes the same `file` upload and an optional `format` form field (`fasta`,
+the default, `genbank` or `fastq`) and returns the normalized file as text, as `cobalt normalize`
+would write it with `--fasta`, `--genbank` or `--fastq`. The `Content-Disposition` header suggests
+a file name, and `X-Records-Read`, `X-Records-Written` and `X-Records-Skipped` count the records
+(with `--cors` they are exposed to the browser):
 
 ```bash
-curl -F file=@input.gb -F format=fasta http://127.0.0.1:8000/normalize > cleaned.fasta
+curl -F file=@input.gb -F format=fasta http://127.0.0.1:8000/api/normalize > cleaned.fasta
 ```
 
 # Logging
@@ -328,23 +346,23 @@ Rules:
 - The API key comes only from `COBALT_API_KEY`, never from a flag (flags are visible in `ps`).
   It's sent only to the configured server. The client should warn when a key is sent over plain
   `http://` to a host that isn't loopback.
-- In client mode, the client checks the server version (`GET /`) first, so a mismatch gives a
+- In client mode, the client checks the server version (`GET /api/`) first, so a mismatch gives a
   clear error.
 - `serve` and `help` always run locally and ignore `--server` and `COBALT_SERVER`.
 - `pipeline check` and `pipeline graph` only read the YAML, so they run locally in both modes.
 - Client mode starts with the commands the server already exposes (`stats`, `inspect`,
   `validate`, `normalize`).
 
-  `foldrna`, `run` and `runs` are not implemented yet and have stub endpoints (`POST /foldrna`,
-  `POST /run`, `GET /runs`, `GET /runs/{run_id}`) that answer 501 Not Implemented
+  `foldrna`, `run` and `runs` are not implemented yet and have stub endpoints (`POST /api/foldrna`,
+  `POST /api/run`, `GET /api/runs`, `GET /api/runs/{run_id}`) that answer 501 Not Implemented
 
 ## Authentication for `serve` (microservice deployment)
 
 The goal is to run `cobalt serve` as one service in a microservice system, so authentication is
 pluggable and selected with `--auth`. Each mode is a FastAPI dependency attached to the router
-with the processing endpoints (`/stats`, `/inspect`, `/validate`, `/normalize`, and the
-`/foldrna`, `/run` and `/runs` stubs); `GET /` stays
-public for version info and liveness probes. Secrets come only from environment variables, never
+with the processing endpoints (`/api/stats`, `/api/inspect`, `/api/validate`, `/api/normalize`,
+and the `/api/foldrna`, `/api/run` and `/api/runs` stubs); `GET /api/` (version info) and
+`GET /api/health` (liveness probes) stay public. Secrets come only from environment variables, never
 from command-line arguments (those are visible in `ps`).
 
 Modes:
@@ -378,7 +396,7 @@ make docker-build                              # tags cobalt-sequence-lab:<versi
 # Server: API keys come from the environment at runtime and are never baked into the image
 COBALT_API_KEYS=my-key make docker-run
 docker run --rm -p 8000:8000 -e COBALT_API_KEYS=key1,key2 cobalt-sequence-lab
-curl -H "X-API-Key: key1" -F file=@seqs.fasta http://127.0.0.1:8000/stats
+curl -H "X-API-Key: key1" -F file=@seqs.fasta http://127.0.0.1:8000/api/stats
 
 # Behind a gateway or service mesh that authenticates: override the command
 docker run --rm -p 8000:8000 cobalt-sequence-lab serve --host 0.0.0.0 --allow-no-auth
@@ -392,7 +410,7 @@ Notes:
 - Without `COBALT_API_KEYS` the default command exits with an error instead of serving
   unauthenticated.
 - Logs are plain text on stderr; read them with `docker logs` or the platform's log collector.
-- `HEALTHCHECK` polls `GET /`, which is public, so liveness probes need no API key.
+- `HEALTHCHECK` polls `GET /api/health`, which is public, so liveness probes need no API key.
 - The server runs as the unprivileged user `cobalt` (uid 10001). Uploads are written to a
   temporary directory under `/tmp`, so with `--read-only` also mount `--tmpfs /tmp`.
 - RNA folding (ViennaRNA, the `rna` extra) is not in the image yet; it will be added when

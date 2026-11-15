@@ -54,5 +54,21 @@ def test_qc_report_to_dict_is_plain():
 
     assert data["passed"] is False
     assert data["warnings"] == [
-        {"record_id": "a", "kind": "empty_sequence", "message": "empty sequence"}
+        {"record_id": "a", "kind": "empty_sequence", "message": "empty sequence", "details": None}
     ]
+
+
+def test_qc_report_max_warnings_truncates_list_only():
+    result = result_of(("a", "ACGT"), ("a", "AC!T"), ("b", ""))
+    report = build_qc_report("in.fasta", result, None, max_warnings=1)
+
+    assert len(report.warnings) == 1
+    assert report.warnings_truncated is True
+    assert sum(report.warning_counts.values()) == 3
+
+
+def test_qc_report_max_warnings_not_reached():
+    report = build_qc_report("in.fasta", result_of(("a", "")), None, max_warnings=1)
+
+    assert len(report.warnings) == 1
+    assert report.warnings_truncated is False

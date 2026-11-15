@@ -42,9 +42,9 @@ WORKDIR /data
 
 EXPOSE 8000
 
-# GET / is public (no API key needed) and returns the version; slim images have no curl
+# GET /api/health is public (no API key needed); slim images have no curl
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=2)"]
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]
 
 # Exec form: cobalt is PID 1 and gets SIGTERM directly, so uvicorn shuts down gracefully.
 # COBALT_API_KEYS (comma-separated) must be provided at runtime; it is never baked into the image.

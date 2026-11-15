@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -5,7 +6,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 
 from cobalt.analysis.processor import process_records
-from cobalt.model.qc import RecordWarning, WarningKind
+from cobalt.model.qc import InvalidCharactersDetails, RecordWarning, WarningKind
 from cobalt.model.record import AnalysisResult, SequenceRecord
 
 TEST_DATA = Path(__file__).parents[2] / "test_data"
@@ -201,3 +202,10 @@ def test_sequence_record_from_dict_length_only():
     assert record.ambiguity_fraction is None
     assert record.invalid_char_count is None
     assert SequenceRecord.from_dict(record.to_dict()) == record
+
+
+def test_record_warning_details_round_trip():
+    details = InvalidCharactersDetails(("*", "J"), 3, (14, 88, 102))
+    warning = RecordWarning("seq7", WarningKind.INVALID_CHARACTERS, "invalid characters", details)
+    result = AnalysisResult.from_dict(make_result_dict(warnings=[asdict(warning)]))
+    assert result.warnings == [warning]

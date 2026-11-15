@@ -7,7 +7,12 @@ import logging
 from Bio.Data import IUPACData
 from Bio.SeqRecord import SeqRecord
 
-from cobalt.model.qc import RecordWarning, WarningKind
+from cobalt.model.qc import (
+    MAX_INVALID_POSITIONS,
+    InvalidCharactersDetails,
+    RecordWarning,
+    WarningKind,
+)
 
 log = logging.getLogger(__name__)
 
@@ -70,16 +75,33 @@ def find_warnings(records: list[SeqRecord], molecule_types: list[str]) -> list[R
             )
             continue
 
-        bad_chars = set(str(record.seq).upper()) - valid_letters(molecule_type)
-        if bad_chars:
+        details = invalid_characters_details(str(record.seq), molecule_type)
+        if details is not None:
             warnings.append(
                 RecordWarning(
                     record_id,
                     WarningKind.INVALID_CHARACTERS,
-                    f"invalid characters {sorted(bad_chars)}",
+                    f"invalid characters {list(details.characters)}",
+                    details,
                 )
             )
     return warnings
+
+
+def invalid_characters_details(seq: str, molecule_type: str) -> InvalidCharactersDetails | None:
+    """Return which letters of `seq` are invalid for `molecule_type` and where; None if none are.
+
+    Letters are compared case-insensitively and reported upper-cased.
+    """
+    valid = valid_letters(molecule_type)
+    positions = [pos for pos, char in enumerate(seq.upper(), start=1) if char not in valid]
+    if not positions:
+        return None
+    return InvalidCharactersDetails(
+        characters=tuple(sorted({seq[pos - 1].upper() for pos in positions})),
+        count=len(positions),
+        first_positions=tuple(positions[:MAX_INVALID_POSITIONS]),
+    )
 
 
 def guess_molecule_type(seq) -> str:

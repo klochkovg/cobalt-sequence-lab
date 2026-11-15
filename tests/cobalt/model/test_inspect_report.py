@@ -60,5 +60,34 @@ def test_report_to_dict_is_plain():
         "record_id": "a",
         "kind": "duplicate_id",
         "message": "duplicate ID",
+        "details": None,
     }
     assert data["records"][1]["type"] == "protein"
+
+
+def test_report_offset_and_limit():
+    report = build_inspect_report("in.fasta", make_result(), None, limit=1, offset=1)
+    assert [r.id for r in report.records] == ["b"]
+    assert report.records_offset == 1
+    assert report.records_num == 3
+
+
+def test_report_offset_past_end():
+    report = build_inspect_report("in.fasta", make_result(), None, offset=10)
+    assert report.records == []
+    assert report.records_offset == 10
+
+
+def test_report_without_sequences():
+    report = build_inspect_report("in.fasta", make_result(), None, include_sequence=False)
+    assert [r.sequence for r in report.records] == [None, None, None]
+    assert report.records[0].length == 4
+    assert report.records[0].gc_fraction == 0.5
+
+
+def test_report_max_warnings():
+    report = build_inspect_report("in.fasta", make_result(), None, max_warnings=0)
+    assert report.warnings == []
+    assert report.warnings_truncated is True
+    assert report.warning_counts["duplicate_id"] == 1
+    assert build_inspect_report("in.fasta", make_result(), None).warnings_truncated is False

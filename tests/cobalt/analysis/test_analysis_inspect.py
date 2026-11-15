@@ -10,6 +10,7 @@ from cobalt.analysis.inspect import (
     canonical_molecule_type,
     find_warnings,
     guess_molecule_type,
+    invalid_characters_details,
 )
 from cobalt.analysis.processor import (
     InputFileError,
@@ -18,7 +19,7 @@ from cobalt.analysis.processor import (
     read_file,
     record_description,
 )
-from cobalt.model.qc import WarningKind
+from cobalt.model.qc import InvalidCharactersDetails, WarningKind
 
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
 
@@ -56,6 +57,25 @@ def test_find_warnings_invalid_character():
     warnings = find_warnings(input_data, ["DNA", "DNA", "DNA"])
     assert len(warnings) == 1
     assert str(warnings[0]) == "seq3: invalid characters ['Z']"
+    assert warnings[0].details == InvalidCharactersDetails(("Z",), 1, (6,))
+
+
+def test_find_warnings_details_only_for_invalid_characters():
+    records = [SeqRecord(Seq(""), id="a"), SeqRecord(Seq("ACGT"), id="a")]
+    warnings = find_warnings(records, ["unknown", "DNA"])
+    assert [w.details for w in warnings] == [None, None]
+
+
+def test_invalid_characters_details():
+    details = invalid_characters_details("AC*Gj" + "*" * 12, "DNA")
+    assert details is not None
+    assert details.characters == ("*", "J")
+    assert details.count == 14
+    assert details.first_positions == (3, 5, 6, 7, 8, 9, 10, 11, 12, 13)
+
+
+def test_invalid_characters_details_none_for_valid_sequence():
+    assert invalid_characters_details("acgtn", "DNA") is None
 
 
 def test_find_warnings_duplicate_ids():
