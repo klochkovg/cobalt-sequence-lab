@@ -10,7 +10,13 @@ from collections.abc import Callable, Sequence
 
 from cobalt import __version__
 from cobalt.cli import foldrna, help, inspect, normalize, pipeline, run, runs, stats, validate
-from cobalt.cli.remote import LOCAL_COMMANDS, SERVER_ENV, resolve_server, run_remote
+from cobalt.cli.remote import (
+    LOCAL_COMMANDS,
+    SERVER_ENV,
+    SERVER_ONLY_COMMANDS,
+    resolve_server,
+    run_remote,
+)
 from cobalt.logging_config import configure_logging
 
 log = logging.getLogger(__name__)
@@ -44,6 +50,12 @@ COMMAND_HANDLERS: dict[str, Callable[[Sequence[str] | None], int]] = {
     "runs": runs.main,
     "help": help.main,
     "serve": _serve_main,
+}
+
+# Handlers of SERVER_ONLY_COMMANDS: they also take the server URL (None in local mode)
+SERVER_ONLY_HANDLERS: dict[str, Callable[[Sequence[str] | None, str | None], int]] = {
+    "run": run.main,
+    "runs": runs.main,
 }
 
 
@@ -95,6 +107,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             log.error("%s", exc)
             return 1
     try:
+        if parsed.command in SERVER_ONLY_COMMANDS:
+            return int(SERVER_ONLY_HANDLERS[parsed.command](parsed.args, server))
         if server is not None:
             return int(run_remote(server, parsed.command, parsed.args, handler))
         return int(handler(parsed.args))

@@ -14,6 +14,10 @@ SERVER_ENV = "COBALT_SERVER"
 # Commands that always run in this process, whatever --server or $COBALT_SERVER say
 LOCAL_COMMANDS = frozenset({"serve", "help", "pipeline"})
 
+# Commands that work only against a server: they get the resolved server URL (None in local
+# mode) themselves instead of going through `run_remote`
+SERVER_ONLY_COMMANDS = frozenset({"run", "runs"})
+
 CommandHandler = Callable[[Sequence[str] | None], int]
 
 

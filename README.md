@@ -349,6 +349,7 @@ Rules:
 - In client mode, the client checks the server version (`GET /api/`) first, so a mismatch gives a
   clear error.
 - `serve` and `help` always run locally and ignore `--server` and `COBALT_SERVER`.
+- `run` and `runs` are server-only: in local mode they fail with "not supported in CLI mode".
 - `pipeline check` and `pipeline graph` only read the YAML, so they run locally in both modes.
 - Client mode starts with the commands the server already exposes (`stats`, `inspect`,
   `validate`, `normalize`).
@@ -430,13 +431,14 @@ We introduce concept of pipeline and task.
 ```bash
 cobalt pipeline check pipeline.yaml     # schema + DAG validation, prints the structure
 cobalt pipeline graph pipeline.yaml     # prints the DAG, one `upstream -> downstream` per line
-cobalt run pipeline.yaml --backend local --param input=x.fasta --resume   # stub
-cobalt runs list                        # stub: past runs from manifests
-cobalt runs show <run_id>               # stub: provenance for one run
+cobalt --server http://lab-a:8000 run pipeline.yaml --param input=x.fasta --resume   # stub
+cobalt --server http://lab-a:8000 runs list            # stub: past runs from manifests
+cobalt --server http://lab-a:8000 runs show <run_id>   # stub: provenance for one run
 ```
 
-`pipeline check` and `pipeline graph` work; `run` and `runs` parse their arguments but only report
-"not implemented yet" (exit status 1). The code lives in `src/cobalt/pipeline/` (model, loader,
+`pipeline check` and `pipeline graph` work. `run` and `runs` are server-only commands: they parse
+their arguments, then in local (CLI) mode report "not supported in CLI mode" and in client mode
+(`--server URL` or `COBALT_SERVER`) report "not implemented yet" (exit status 1 in both). The code lives in `src/cobalt/pipeline/` (model, loader,
 text rendering).
 
 ### Pipeline file, schema version 1
