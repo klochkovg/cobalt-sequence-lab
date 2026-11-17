@@ -34,10 +34,13 @@ ENV PATH=/opt/venv/bin:$PATH \
 
 COPY --from=build /opt/venv /opt/venv
 
-RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin cobalt
+# /data is owned by cobalt: `serve` creates its config and storage in /data/.cobalt-server
+RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin cobalt \
+    && mkdir -p /data && chown cobalt:cobalt /data
 USER cobalt
 
 # Bind-mount input files here for CLI use: docker run -v "$PWD:/data" IMAGE stats x.fasta
+# For the server, mount a volume here to keep .cobalt-server (config and storage)
 WORKDIR /data
 
 EXPOSE 8000

@@ -115,6 +115,8 @@ cobalt serve --host 0.0.0.0 --allow-no-auth   # no auth: a gateway or service me
 cobalt serve --api-prefix ""                # pre-0.2.0 paths, without the /api prefix
 cobalt serve --max-upload-mb 500            # request body limit (default 100, 0 for none)
 cobalt serve --ui-dist ../cobalt-sequence-lab-ui/dist   # also serve the built UI at /
+cobalt serve --config /etc/cobalt/server.yaml   # another config file (see Server configuration)
+cobalt serve --storage-dir /srv/cobalt          # server file storage
 ```
 
 Every endpoint is served under `/api` (`--api-prefix` changes it; `""` removes it): `GET /api/`
@@ -165,6 +167,34 @@ a file name, and `X-Records-Read`, `X-Records-Written` and `X-Records-Skipped` c
 ```bash
 curl -F file=@input.gb -F format=fasta http://127.0.0.1:8000/api/normalize > cleaned.fasta
 ```
+
+## Server configuration
+
+`cobalt serve` reads its settings from a YAML file, by default
+`./.cobalt-server/cobalt-config.yaml` in the working directory. If that file is missing, it is
+created with the default values. A file given with `--config PATH` must exist. The
+server's file storage (`storage_dir`) defaults to the same `.cobalt-server` directory and is
+created at startup.
+
+```yaml
+config_version: 1
+host: 127.0.0.1
+port: 8000
+api_prefix: /api
+max_upload_mb: 100
+cors: null            # null: disabled; []: any origin; or a list of origins
+auth: none            # none or api-key (keys come from $COBALT_API_KEYS, never from this file)
+allow_no_auth: false
+ui_dist: null
+storage_dir: .        # relative paths are relative to this file's directory
+```
+
+- Precedence: defaults → config file → command-line flags. `cobalt serve --port 8080` overrides
+  `port: 9000` from the file.
+- Files from other cobalt versions load: missing keys get their defaults, and unknown keys are
+  ignored with a warning (as is a newer `config_version`). The file is never rewritten.
+- Invalid values (`port: abc`, `auth: jwt`) stop the server with an error naming the key.
+- Secrets are never stored in the file.
 
 # Logging
 
@@ -412,6 +442,8 @@ Notes:
   unauthenticated.
 - Logs are plain text on stderr; read them with `docker logs` or the platform's log collector.
 - `HEALTHCHECK` polls `GET /api/health`, which is public, so liveness probes need no API key.
+- The server keeps its config and storage in `/data/.cobalt-server` (created on first start);
+  mount a volume at `/data` to keep them across containers.
 - The server runs as the unprivileged user `cobalt` (uid 10001). Uploads are written to a
   temporary directory under `/tmp`, so with `--read-only` also mount `--tmpfs /tmp`.
 - RNA folding (ViennaRNA, the `rna` extra) is not in the image yet; it will be added when

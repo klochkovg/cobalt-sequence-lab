@@ -76,3 +76,6 @@ thoughts.md
 # Claude Code: shared project settings are tracked, personal overrides are not
 !.claude/settings.json
 .claude/settings.local.json
+
+# cobalt serve: default server config and storage
+.cobalt-server/

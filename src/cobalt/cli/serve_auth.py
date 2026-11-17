@@ -9,9 +9,12 @@ from collections.abc import Awaitable, Callable, Collection, Mapping
 from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 
+from cobalt.server_config import AUTH_MODES
+
+__all__ = ["AUTH_MODES", "ApiKeyAuth", "AuthDependency", "build_auth", "parse_api_keys"]
+
 API_KEYS_ENV = "COBALT_API_KEYS"
 API_KEY_HEADER = "X-API-Key"
-AUTH_MODES = ("none", "api-key")
 
 # A FastAPI dependency that returns normally for an authenticated request and raises otherwise
 AuthDependency = Callable[..., Awaitable[None]]

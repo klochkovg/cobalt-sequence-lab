@@ -44,6 +44,18 @@ from cobalt.model.inspect import InspectReport, build_inspect_report
 from cobalt.model.qc import QCReport, build_qc_report
 from cobalt.model.record import AnalysisResult, SequenceRecord
 from cobalt.model.stats import SortKey, StatsRow, build_stats_rows
+from cobalt.server_config import (
+    DEFAULT_API_PREFIX,
+    DEFAULT_HOST,
+    DEFAULT_MAX_UPLOAD_MB,
+    DEFAULT_PORT,
+    SERVER_DIR,
+    ServerConfig,
+    ServerConfigError,
+    default_config_path,
+    load_server_config,
+    save_server_config,
+)
 
 log = logging.getLogger(__name__)
 
@@ -76,8 +88,6 @@ def _not_implemented(command: str) -> HTTPException:
 DEFAULT_UPLOAD_NAME = "upload"
 
 API_TITLE = "Cobalt Sequence Lab"
-DEFAULT_API_PREFIX = "/api"
-DEFAULT_MAX_UPLOAD_MB = 100
 BYTES_PER_MB = 1024 * 1024
 # A compressed upload may expand to this many times the upload limit
 DECOMPRESSED_LIMIT_FACTOR = 10
@@ -423,10 +433,20 @@ class UIStaticFiles(StaticFiles):
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build parser for serve command."""
+    """Build parser for serve command.
+
+    Server flags default to None, meaning "not given": the config file (or its defaults) then
+    provides the value. Given flags override the file.
+    """
     parser = argparse.ArgumentParser(prog="cobalt serve")
-    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
-    parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        metavar="PATH",
+        help=f"Server config file (default: ./{SERVER_DIR}/cobalt-config.yaml, created if missing)",
+    )
+    parser.add_argument("--host", help=f"Host to bind to (default: {DEFAULT_HOST})")
+    parser.add_argument("--port", type=int, help=f"Port to bind to (default: {DEFAULT_PORT})")
     parser.add_argument(
         "--cors",
         nargs="*",
@@ -436,24 +456,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--auth",
         choices=AUTH_MODES,
-        default="none",
-        help="Authentication for processing endpoints (api-key reads keys from $COBALT_API_KEYS)",
+        help="Authentication for processing endpoints (default: none; "
+        "api-key reads keys from $COBALT_API_KEYS)",
     )
     parser.add_argument(
         "--allow-no-auth",
         action="store_true",
+        default=None,
         help="Allow --auth none on a non-loopback host (auth handled by a gateway or mesh)",
     )
     parser.add_argument(
         "--api-prefix",
-        default=DEFAULT_API_PREFIX,
         metavar="PREFIX",
         help=f'Path prefix of every endpoint (default: {DEFAULT_API_PREFIX}; "" for none)',
     )
     parser.add_argument(
         "--max-upload-mb",
         type=_non_negative_int,
-        default=DEFAULT_MAX_UPLOAD_MB,
         metavar="N",
         help=f"Request body size limit in MiB (default: {DEFAULT_MAX_UPLOAD_MB}; 0 for no limit)",
     )
@@ -462,6 +481,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="PATH",
         help="Serve the built UI (its dist/ folder) at / alongside the API",
+    )
+    parser.add_argument(
+        "--storage-dir",
+        type=Path,
+        metavar="PATH",
+        help="Server file storage (default: the config file's directory)",
     )
     return parser
 
@@ -608,45 +633,86 @@ def build_app(
     return app
 
 
+def load_config(args: argparse.Namespace) -> ServerConfig:
+    """Read the server config named by `args.config` (or the default one) and apply the flags.
+
+    A missing default config file is created with default values; a missing file given with
+    --config is an error. Raises ServerConfigError.
+    """
+    path = args.config if args.config is not None else default_config_path()
+    if args.config is None and not path.exists():
+        try:
+            save_server_config(ServerConfig(), path)
+        except OSError as exc:
+            raise ServerConfigError(f"could not create {path}: {exc}") from None
+        log.info("created default server config %s", path)
+    config = load_server_config(path).resolve_paths(path.parent)
+    log.info("server config: %s", path)
+    return config.with_overrides(
+        host=args.host,
+        port=args.port,
+        cors=args.cors,
+        auth=args.auth,
+        allow_no_auth=args.allow_no_auth,
+        api_prefix=args.api_prefix,
+        max_upload_mb=args.max_upload_mb,
+        ui_dist=args.ui_dist,
+        storage_dir=args.storage_dir,
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the serve command."""
     args = build_parser().parse_args(argv)
 
     try:
-        auth = build_auth(args.auth)
+        config = load_config(args)
+    except ServerConfigError as exc:
+        log.error("%s", exc)
+        return 1
+    try:
+        config.storage_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        log.error("could not create storage directory %s: %s", config.storage_dir, exc)
+        return 1
+    log.info("storage directory: %s", config.storage_dir)
+
+    try:
+        auth = build_auth(config.auth)
     except ValueError as exc:
         log.error("%s", exc)
         return 1
-    if auth is None and not _is_loopback(args.host) and not args.allow_no_auth:
+    if auth is None and not _is_loopback(config.host) and not config.allow_no_auth:
         log.error(
             "refusing to serve %s without authentication: use --auth api-key, or "
             "--allow-no-auth if a gateway or service mesh handles authentication",
-            args.host,
+            config.host,
         )
         return 1
-    api_prefix = normalize_api_prefix(args.api_prefix)
-    if args.ui_dist is not None:
+    api_prefix = normalize_api_prefix(config.api_prefix)
+    if config.ui_dist is not None:
         if not api_prefix:
             log.error('--ui-dist needs an API prefix: drop --api-prefix "" or set another one')
             return 1
-        if not (args.ui_dist / "index.html").is_file():
+        if not (config.ui_dist / "index.html").is_file():
             log.error(
-                "--ui-dist %s: no index.html found (expected the UI's dist/ folder)", args.ui_dist
+                "--ui-dist %s: no index.html found (expected the UI's dist/ folder)",
+                config.ui_dist,
             )
             return 1
-    log.info("authentication: %s", args.auth)
+    log.info("authentication: %s", config.auth)
     log.info("API prefix: %s", api_prefix or "(none)")
 
     app = build_app(
-        cors_origins=args.cors,
+        cors_origins=config.cors,
         auth=auth,
         api_prefix=api_prefix,
-        max_upload_mb=args.max_upload_mb,
-        ui_dist=args.ui_dist,
+        max_upload_mb=config.max_upload_mb,
+        ui_dist=config.ui_dist,
     )
     # log_config=None: uvicorn's loggers propagate to the handler set up by
     # cobalt.logging_config instead of installing uvicorn's own
-    uvicorn.run(app, host=args.host, port=args.port, log_config=None)
+    uvicorn.run(app, host=config.host, port=config.port, log_config=None)
 
     return 0
 

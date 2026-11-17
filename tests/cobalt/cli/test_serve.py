@@ -12,6 +12,7 @@ from cobalt.cli import serve
 from cobalt.cli.main import main
 from cobalt.cli.serve import build_app, build_parser, normalize_api_prefix, normalized_filename
 from cobalt.cli.serve_auth import API_KEYS_ENV, ApiKeyAuth
+from cobalt.server_config import ServerConfig, load_server_config
 
 VERSION_BODY = {"title": "Cobalt Sequence Lab", "version": __version__}
 
@@ -814,17 +815,27 @@ def test_parser_cors():
     assert parser.parse_args(["--cors", "http://a", "http://b"]).cors == ["http://a", "http://b"]
 
 
-def test_parser_auth_defaults():
+def test_parser_flags_default_to_not_given():
+    # None means "not given": the config file provides the value
     args = build_parser().parse_args([])
-    assert args.auth == "none"
-    assert args.allow_no_auth is False
+    for name in (
+        "config",
+        "host",
+        "port",
+        "cors",
+        "auth",
+        "allow_no_auth",
+        "api_prefix",
+        "max_upload_mb",
+        "ui_dist",
+        "storage_dir",
+    ):
+        assert getattr(args, name) is None, name
 
 
-def test_parser_new_option_defaults():
-    args = build_parser().parse_args([])
-    assert args.api_prefix == "/api"
-    assert args.max_upload_mb == 100
-    assert args.ui_dist is None
+def test_parser_given_flags():
+    args = build_parser().parse_args(["--allow-no-auth", "--api-prefix", "", "--port", "1"])
+    assert (args.allow_no_auth, args.api_prefix, args.port) == (True, "", 1)
 
 
 def test_parser_rejects_negative_upload_limit():
@@ -880,8 +891,14 @@ def test_api_key_auth_guards_stub_endpoints(method, path, body, command):
 
 
 @pytest.fixture
-def uvicorn_calls(monkeypatch):
-    """Record uvicorn.run calls instead of starting a server."""
+def uvicorn_calls(monkeypatch, tmp_path):
+    """Record uvicorn.run calls instead of starting a server.
+
+    Also runs in an empty working directory, where `main` creates its default config.
+    """
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
     calls = []
     monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: calls.append((app, kwargs)))
     return calls
@@ -947,3 +964,80 @@ def test_main_max_upload_mb(uvicorn_calls):
     ((app, _),) = uvicorn_calls
     files = [upload(DATA_DIR / "x", "big.fasta", b">s\n" + b"A" * ONE_MB)]
     assert TestClient(app).post("/api/stats", files=files).status_code == 413
+
+
+def write_config(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    return path
+
+
+def test_main_creates_default_config(uvicorn_calls):
+    assert serve.main([]) == 0
+    config_path = Path(".cobalt-server/cobalt-config.yaml")
+    assert config_path.is_file()
+    assert load_server_config(config_path) == ServerConfig()
+    ((_, kwargs),) = uvicorn_calls
+    assert (kwargs["host"], kwargs["port"]) == ("127.0.0.1", 8000)
+
+
+def test_main_uses_config_values(uvicorn_calls):
+    write_config(
+        Path(".cobalt-server/cobalt-config.yaml"),
+        "config_version: 1\nhost: localhost\nport: 9000\napi_prefix: /v2\n",
+    )
+    assert serve.main([]) == 0
+    ((app, kwargs),) = uvicorn_calls
+    assert (kwargs["host"], kwargs["port"]) == ("localhost", 9000)
+    assert TestClient(app).get("/v2/health").status_code == 200
+
+
+def test_main_flags_override_config(uvicorn_calls):
+    write_config(
+        Path(".cobalt-server/cobalt-config.yaml"),
+        "config_version: 1\nport: 9000\napi_prefix: /v2\n",
+    )
+    assert serve.main(["--port", "8080", "--api-prefix", ""]) == 0
+    ((app, kwargs),) = uvicorn_calls
+    assert kwargs["port"] == 8080
+    assert TestClient(app).get("/health").status_code == 200
+
+
+def test_main_explicit_config(uvicorn_calls, tmp_path):
+    path = write_config(tmp_path / "conf" / "server.yaml", "config_version: 1\nport: 9100\n")
+    assert serve.main(["--config", str(path)]) == 0
+    assert uvicorn_calls[0][1]["port"] == 9100
+    assert (tmp_path / "conf").is_dir()
+    assert not Path(".cobalt-server").exists()
+
+
+def test_main_explicit_missing_config_fails(uvicorn_calls, tmp_path, caplog):
+    assert serve.main(["--config", str(tmp_path / "missing.yaml")]) == 1
+    assert uvicorn_calls == []
+    assert "config file not found" in caplog.text
+    assert not (tmp_path / "missing.yaml").exists()
+
+
+def test_main_invalid_config_fails(uvicorn_calls, caplog):
+    write_config(Path(".cobalt-server/cobalt-config.yaml"), "config_version: 1\nport: abc\n")
+    assert serve.main([]) == 1
+    assert uvicorn_calls == []
+    assert "cobalt-config.yaml: port: expected an integer 1-65535" in caplog.text
+
+
+def test_main_config_auth_without_keys_fails(monkeypatch, uvicorn_calls):
+    monkeypatch.delenv(API_KEYS_ENV, raising=False)
+    write_config(Path(".cobalt-server/cobalt-config.yaml"), "config_version: 1\nauth: api-key\n")
+    assert serve.main([]) == 1
+    assert uvicorn_calls == []
+
+
+def test_main_creates_storage_dir_relative_to_config(uvicorn_calls, tmp_path):
+    path = write_config(tmp_path / "conf" / "server.yaml", "config_version: 1\nstorage_dir: data\n")
+    assert serve.main(["--config", str(path)]) == 0
+    assert (tmp_path / "conf" / "data").is_dir()
+
+
+def test_main_storage_dir_flag(uvicorn_calls, tmp_path):
+    assert serve.main(["--storage-dir", str(tmp_path / "store")]) == 0
+    assert (tmp_path / "store").is_dir()
