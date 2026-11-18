@@ -12,14 +12,14 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-import os
-import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from cobalt.io.files import write_text_atomic
 
 log = logging.getLogger(__name__)
 
@@ -243,15 +243,6 @@ def save_server_config(config: ServerConfig, path: Path) -> None:
     The file is replaced atomically, so a reader never sees a half-written config.
     """
     data = dataclasses.replace(config, config_version=CONFIG_VERSION).to_dict()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w") as tmp:
-            tmp.write(CONFIG_HEADER)
-            yaml.safe_dump(data, tmp, sort_keys=False)
-        # mkstemp creates the file 0600; the config holds no secrets
-        os.chmod(tmp_name, CONFIG_FILE_MODE)
-        os.replace(tmp_name, path)
-    except BaseException:
-        Path(tmp_name).unlink(missing_ok=True)
-        raise
+    # The config holds no secrets, so it is readable by others
+    text = CONFIG_HEADER + yaml.safe_dump(data, sort_keys=False)
+    write_text_atomic(path, text, CONFIG_FILE_MODE)

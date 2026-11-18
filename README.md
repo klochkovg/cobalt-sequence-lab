@@ -384,15 +384,17 @@ Rules:
 - Client mode starts with the commands the server already exposes (`stats`, `inspect`,
   `validate`, `normalize`).
 
-  `foldrna`, `run` and `runs` are not implemented yet and have stub endpoints (`POST /api/foldrna`,
-  `POST /api/run`, `GET /api/runs`, `GET /api/runs/{run_id}`) that answer 501 Not Implemented
+  `foldrna` and `run` are not implemented yet and have stub endpoints (`POST /api/foldrna`,
+  `POST /api/run`) that answer 501 Not Implemented. `GET /api/runs` and `GET /api/runs/{run_id}`
+  answer from the server's run registry (see [Runs](#runs)); the `runs` CLI command doesn't use
+  them yet.
 
 ## Authentication for `serve` (microservice deployment)
 
 The goal is to run `cobalt serve` as one service in a microservice system, so authentication is
 pluggable and selected with `--auth`. Each mode is a FastAPI dependency attached to the router
 with the processing endpoints (`/api/stats`, `/api/inspect`, `/api/validate`, `/api/normalize`,
-and the `/api/foldrna`, `/api/run` and `/api/runs` stubs); `GET /api/` (version info) and
+the `/api/foldrna` and `/api/run` stubs, and `/api/runs`); `GET /api/` (version info) and
 `GET /api/health` (liveness probes) stay public. Secrets come only from environment variables, never
 from command-line arguments (those are visible in `ps`).
 
@@ -470,8 +472,24 @@ cobalt --server http://lab-a:8000 runs show <run_id>   # stub: provenance for on
 
 `pipeline check` and `pipeline graph` work. `run` and `runs` are server-only commands: they parse
 their arguments, then in local (CLI) mode report "not supported in CLI mode" and in client mode
-(`--server URL` or `COBALT_SERVER`) report "not implemented yet" (exit status 1 in both). The code lives in `src/cobalt/pipeline/` (model, loader,
-text rendering).
+(`--server URL` or `COBALT_SERVER`) report "not implemented yet" (exit status 1 in both). The
+code lives in `src/cobalt/pipeline/`: the definition model (`Pipeline`, `Task`), the loader, text
+rendering, the run model (`PipelineRun`, `TaskRun`) and the run registry (`RunRegistry`).
+
+### Runs
+
+`cobalt serve` keeps one run registry for its whole lifetime. It holds every pipeline run with its
+status (`pending`, `running`, `succeeded`, `failed`, `cancelled`) and the status of each task.
+Each run is stored in `<storage_dir>/runs/<run_id>/`: `manifest.json` (the run and its tasks) and
+`pipeline.yaml` (a copy of the definition, for provenance). The server reloads the manifests at
+startup. An invalid manifest is skipped with a warning, and a run that was still pending or
+running when the server stopped is marked `failed` ("interrupted: server stopped").
+
+- `GET /api/runs`: all runs, newest first, each with task counts per status.
+- `GET /api/runs/{run_id}`: one run with its parameters and tasks, or 404.
+
+Nothing executes runs yet (`POST /api/run` answers 501), so the registry only lists the runs
+already stored.
 
 ### Pipeline file, schema version 1
 

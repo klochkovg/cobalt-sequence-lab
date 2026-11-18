@@ -43,7 +43,7 @@ class InputSpec:
 
 
 @dataclass(frozen=True)
-class TaskSpec:
+class Task:
     """One task of the pipeline: what to run and how it is wired to the rest."""
 
     name: str
@@ -64,12 +64,12 @@ class TaskSpec:
 
 
 @dataclass(frozen=True)
-class PipelineV1:
+class Pipeline:
     """A whole pipeline definition: a DAG of tasks plus its params, inputs and outputs."""
 
     schema_version: int
     info: PipelineInfo
-    tasks: dict[str, TaskSpec]
+    tasks: dict[str, Task]
     params: dict[str, ParamSpec] = field(default_factory=dict)
     inputs: dict[str, InputSpec] = field(default_factory=dict)
     outputs: dict[str, str] = field(default_factory=dict)

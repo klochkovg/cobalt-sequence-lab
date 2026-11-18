@@ -12,6 +12,7 @@ from cobalt.cli import serve
 from cobalt.cli.main import main
 from cobalt.cli.serve import build_app, build_parser, normalize_api_prefix, normalized_filename
 from cobalt.cli.serve_auth import API_KEYS_ENV, ApiKeyAuth
+from cobalt.pipeline import RunRegistry, RunStatus, load_pipeline
 from cobalt.server_config import ServerConfig, load_server_config
 
 VERSION_BODY = {"title": "Cobalt Sequence Lab", "version": __version__}
@@ -864,8 +865,6 @@ def test_api_key_auth_leaves_root_public():
 STUB_REQUESTS = [
     ("post", "/api/foldrna", {"sequence": "GGGAAAUCC"}, "foldrna"),
     ("post", "/api/run", {"pipeline": "name: demo"}, "run"),
-    ("get", "/api/runs", None, "runs list"),
-    ("get", "/api/runs/r1", None, "runs show"),
 ]
 
 
@@ -1041,3 +1040,78 @@ def test_main_creates_storage_dir_relative_to_config(uvicorn_calls, tmp_path):
 def test_main_storage_dir_flag(uvicorn_calls, tmp_path):
     assert serve.main(["--storage-dir", str(tmp_path / "store")]) == 0
     assert (tmp_path / "store").is_dir()
+
+
+PIPELINE_FILE = Path(__file__).parents[2] / "test_data" / "pipeline_test_v1.yaml"
+
+
+def registry_with_run(runs_dir=None):
+    registry = RunRegistry(runs_dir)
+    run = registry.create(load_pipeline(PIPELINE_FILE), PIPELINE_FILE.read_text(), {"k": "v"})
+    return registry, run
+
+
+def test_runs_list_empty():
+    assert TestClient(build_app()).get("/api/runs").json() == []
+
+
+def test_runs_list_and_show():
+    registry, run = registry_with_run()
+    run.set_task_status("validate", RunStatus.SUCCEEDED)
+    client = TestClient(build_app(runs=registry))
+
+    (summary,) = client.get("/api/runs").json()
+    assert summary["run_id"] == run.run_id
+    assert summary["pipeline"]["name"] == "fold-rna-from-fasta"
+    assert summary["status"] == "pending"
+    assert summary["tasks"]["pending"] == 3
+    assert summary["tasks"]["succeeded"] == 1
+    assert "params" not in summary
+
+    resp = client.get(f"/api/runs/{run.run_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["params"] == {"k": "v"}
+    assert [task["name"] for task in body["tasks"]] == ["inspect", "validate", "normalize", "fold"]
+    assert body["tasks"][1]["status"] == "succeeded"
+    assert body["tasks"][2]["depends_on"] == ["validate"]
+
+
+def test_runs_show_unknown_run():
+    resp = TestClient(build_app()).get("/api/runs/nope")
+    assert resp.status_code == 404
+    assert resp.json() == {"detail": "run not found: nope"}
+
+
+def test_app_keeps_its_registry():
+    registry = RunRegistry()
+    assert build_app(runs=registry).state.runs is registry
+    assert isinstance(build_app().state.runs, RunRegistry)
+
+
+@pytest.mark.parametrize("path", ["/api/runs", "/api/runs/r1"])
+def test_api_key_auth_guards_runs(path):
+    client = TestClient(build_app(auth=ApiKeyAuth(["k1"])))
+    assert client.get(path).status_code == 401
+    assert client.get(path, headers={"X-API-Key": "k1"}).status_code in (200, 404)
+
+
+def test_main_creates_runs_registry(uvicorn_calls):
+    assert serve.main([]) == 0
+    ((app, _),) = uvicorn_calls
+    assert app.state.runs.runs_dir == Path(".cobalt-server/runs").absolute()
+    assert Path(".cobalt-server/runs").is_dir()
+
+
+def test_main_loads_stored_runs(uvicorn_calls):
+    _, run = registry_with_run(Path(".cobalt-server/runs"))
+    assert serve.main([]) == 0
+    ((app, _),) = uvicorn_calls
+    assert TestClient(app).get(f"/api/runs/{run.run_id}").json()["run_id"] == run.run_id
+
+
+def test_main_runs_dir_unusable(uvicorn_calls):
+    # A file where the runs directory should be
+    write_config(Path(".cobalt-server/runs"), "not a directory")
+    assert serve.main([]) == 1
+    assert uvicorn_calls == []

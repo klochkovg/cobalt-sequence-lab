@@ -12,9 +12,9 @@ import yaml
 from cobalt.pipeline.model import (
     InputSpec,
     ParamSpec,
+    Pipeline,
     PipelineInfo,
-    PipelineV1,
-    TaskSpec,
+    Task,
     references,
 )
 
@@ -29,7 +29,7 @@ class PipelineFileError(Exception):
     """A pipeline definition that can't be read or is invalid; the message is ready to be logged."""
 
 
-def load_pipeline(path: Path) -> PipelineV1:
+def load_pipeline(path: Path) -> Pipeline:
     """Read the pipeline definition in `path`.
 
     Raises PipelineFileError if the file is missing, is not valid YAML or doesn't
@@ -52,8 +52,8 @@ def load_pipeline(path: Path) -> PipelineV1:
         raise PipelineFileError(f"{path}: {exc}") from None
 
 
-def parse_pipeline(data: object) -> PipelineV1:
-    """Build a PipelineV1 from already parsed YAML, validating its structure and references."""
+def parse_pipeline(data: object) -> Pipeline:
+    """Build a Pipeline from already parsed YAML, validating its structure and references."""
     top = _mapping(data, "pipeline file")
     _check_keys(top, TOP_LEVEL_KEYS, "pipeline file")
 
@@ -102,7 +102,7 @@ def parse_pipeline(data: object) -> PipelineV1:
         for name, value in _mapping(top.get("outputs", {}), "outputs").items()
     }
 
-    pipeline = PipelineV1(
+    pipeline = Pipeline(
         schema_version=schema_version,
         info=info,
         tasks=tasks,
@@ -119,11 +119,11 @@ def parse_pipeline(data: object) -> PipelineV1:
     return pipeline
 
 
-def _parse_task(name: str, data: object) -> TaskSpec:
+def _parse_task(name: str, data: object) -> Task:
     where = f"tasks.{name}"
     spec = _mapping(data, where)
     _check_keys(spec, TASK_KEYS, where)
-    return TaskSpec(
+    return Task(
         name=name,
         type=_string(spec.get("type"), f"{where}.type"),
         inputs={
@@ -138,7 +138,7 @@ def _parse_task(name: str, data: object) -> TaskSpec:
     )
 
 
-def _check_references(pipeline: PipelineV1) -> None:
+def _check_references(pipeline: Pipeline) -> None:
     """Check that every `${...}` reference points to a declared input, param or task."""
     values: list[tuple[str, object]] = []
     for task in pipeline.tasks.values():

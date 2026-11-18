@@ -18,7 +18,17 @@ from urllib.parse import quote
 import uvicorn
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -44,6 +54,8 @@ from cobalt.model.inspect import InspectReport, build_inspect_report
 from cobalt.model.qc import QCReport, build_qc_report
 from cobalt.model.record import AnalysisResult, SequenceRecord
 from cobalt.model.stats import SortKey, StatsRow, build_stats_rows
+from cobalt.pipeline.registry import RunRegistry
+from cobalt.pipeline.run import PipelineRun, RunSummary
 from cobalt.server_config import (
     DEFAULT_API_PREFIX,
     DEFAULT_HOST,
@@ -83,6 +95,9 @@ def _not_implemented(command: str) -> HTTPException:
         detail=f"cobalt {command} is not implemented yet",
     )
 
+
+# Directory of run manifests under the storage directory
+RUNS_DIRNAME = "runs"
 
 # Name reported for an upload sent without a filename
 DEFAULT_UPLOAD_NAME = "upload"
@@ -512,12 +527,19 @@ def _is_loopback(host: str) -> bool:
         return False
 
 
+def get_runs(request: Request) -> RunRegistry:
+    """FastAPI dependency: the run registry of the app serving `request`."""
+    registry: RunRegistry = request.app.state.runs
+    return registry
+
+
 def build_app(
     cors_origins: Sequence[str] | None = None,
     auth: AuthDependency | None = None,
     api_prefix: str = DEFAULT_API_PREFIX,
     max_upload_mb: int = DEFAULT_MAX_UPLOAD_MB,
     ui_dist: Path | None = None,
+    runs: RunRegistry | None = None,
 ) -> FastAPI:
     """Build the FastAPI application.
 
@@ -526,7 +548,9 @@ def build_app(
     `auth` guards the processing endpoints; the version (`<prefix>/`) and `<prefix>/health`
     stay public. Request bodies over `max_upload_mb` MiB (0: no limit) give 413. `ui_dist`
     serves the built UI at `/`; it needs a non-empty `api_prefix`.
-    `/foldrna`, `/run` and `/runs` are stubs that answer 501 Not Implemented for now.
+    `runs` is the run registry the app keeps for its lifetime (`app.state.runs`); by default a
+    new in-memory one. `/runs` and `/runs/{run_id}` answer from it; `/foldrna` and `/run` are
+    stubs that answer 501 Not Implemented for now.
     """
     prefix = normalize_api_prefix(api_prefix)
     if ui_dist is not None and not prefix:
@@ -541,6 +565,8 @@ def build_app(
         docs_url=f"{prefix}/docs",
         redoc_url=None,
     )
+    # The one run registry of this app, handed to endpoints by get_runs
+    app.state.runs = runs if runs is not None else RunRegistry()
     public = APIRouter()
     api = APIRouter(dependencies=[Depends(auth)] if auth else [])
 
@@ -617,13 +643,16 @@ def build_app(
     async def run(body: RunRequest):
         raise _not_implemented("run")
 
-    @api.get("/runs")
-    async def runs_list():
-        raise _not_implemented("runs list")
+    @api.get("/runs", response_model=list[RunSummary])
+    def runs_list(registry: Annotated[RunRegistry, Depends(get_runs)]) -> list[RunSummary]:
+        return [RunSummary.from_run(run) for run in registry.list_runs()]
 
-    @api.get("/runs/{run_id}")
-    async def runs_show(run_id: str):
-        raise _not_implemented("runs show")
+    @api.get("/runs/{run_id}", response_model=PipelineRun)
+    def runs_show(run_id: str, registry: Annotated[RunRegistry, Depends(get_runs)]) -> PipelineRun:
+        run = registry.get(run_id)
+        if run is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"run not found: {run_id}")
+        return run
 
     app.include_router(public, prefix=prefix)
     app.include_router(api, prefix=prefix)
@@ -676,6 +705,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         log.error("could not create storage directory %s: %s", config.storage_dir, exc)
         return 1
     log.info("storage directory: %s", config.storage_dir)
+    runs = RunRegistry(config.storage_dir / RUNS_DIRNAME)
+    try:
+        loaded = runs.load()
+    except OSError as exc:
+        log.error("could not read runs directory %s: %s", runs.runs_dir, exc)
+        return 1
+    log.info("runs loaded: %d", loaded)
 
     try:
         auth = build_auth(config.auth)
@@ -709,6 +745,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         api_prefix=api_prefix,
         max_upload_mb=config.max_upload_mb,
         ui_dist=config.ui_dist,
+        runs=runs,
     )
     # log_config=None: uvicorn's loggers propagate to the handler set up by
     # cobalt.logging_config instead of installing uvicorn's own

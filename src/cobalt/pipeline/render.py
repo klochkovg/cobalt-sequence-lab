@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from cobalt.pipeline.model import PipelineV1
+from cobalt.pipeline.model import Pipeline
 
 
 def _inline(values: dict[str, object] | dict[str, str]) -> str:
     return ", ".join(f"{key}={value}" for key, value in values.items())
 
 
-def format_structure(pipeline: PipelineV1) -> str:
+def format_structure(pipeline: Pipeline) -> str:
     """Describe the whole pipeline; tasks are listed in execution (topological) order."""
     info = pipeline.info
     lines = [f"pipeline: {info.name} {info.version} (schema v{pipeline.schema_version})"]
@@ -57,7 +57,7 @@ def format_structure(pipeline: PipelineV1) -> str:
     return "\n".join(lines)
 
 
-def format_graph(pipeline: PipelineV1) -> str:
+def format_graph(pipeline: Pipeline) -> str:
     """List the DAG as `upstream -> downstream` lines; tasks without edges appear alone."""
     edges = pipeline.edges()
     connected = {name for edge in edges for name in edge}
