@@ -331,8 +331,9 @@ Biopython is the reason for the project and stays the reference implementation, 
 ## Local and client-server modes (partially implemented)
 
 Status: `--server`, `--local` and `COBALT_SERVER` are parsed, and the entry point
-(`cobalt.cli.main`) decides between local and client mode (`cobalt.cli.remote`). Remote calls
-aren't implemented yet, so in client mode the command logs a warning and still runs locally.
+(`cobalt.cli.main`) decides between local and client mode (`cobalt.cli.remote`). Of the remote
+calls, only `runs list` and `runs show` are implemented (`cobalt.cli.client`, standard library
+HTTP). The other commands log a warning in client mode and still run locally.
 Everything below about the server side describes the target behavior.
 
 Cobalt runs in one of two modes:
@@ -386,8 +387,7 @@ Rules:
 
   `foldrna` and `run` are not implemented yet and have stub endpoints (`POST /api/foldrna`,
   `POST /api/run`) that answer 501 Not Implemented. `GET /api/runs` and `GET /api/runs/{run_id}`
-  answer from the server's run registry (see [Runs](#runs)); the `runs` CLI command doesn't use
-  them yet.
+  answer from the server's run registry (see [Runs](#runs)), and `cobalt runs` calls them.
 
 ## Authentication for `serve` (microservice deployment)
 
@@ -466,13 +466,21 @@ We introduce concept of pipeline and task.
 cobalt pipeline check pipeline.yaml     # schema + DAG validation, prints the structure
 cobalt pipeline graph pipeline.yaml     # prints the DAG, one `upstream -> downstream` per line
 cobalt --server http://lab-a:8000 run pipeline.yaml --param input=x.fasta --resume   # stub
-cobalt --server http://lab-a:8000 runs list            # stub: past runs from manifests
-cobalt --server http://lab-a:8000 runs show <run_id>   # stub: provenance for one run
+cobalt --server http://lab-a:8000 runs list            # the server's runs, newest first
+cobalt --server http://lab-a:8000 runs show <run_id>   # one run: params, status of each task
+cobalt --server http://lab-a:8000 runs list --json     # the server's JSON answer instead of text
 ```
 
-`pipeline check` and `pipeline graph` work. `run` and `runs` are server-only commands: they parse
-their arguments, then in local (CLI) mode report "not supported in CLI mode" and in client mode
-(`--server URL` or `COBALT_SERVER`) report "not implemented yet" (exit status 1 in both). The
+`pipeline check` and `pipeline graph` work. `run` and `runs` are server-only commands: in local
+(CLI) mode they report "not supported in CLI mode" (exit status 1).
+
+- `runs list` and `runs show` work in client mode (`--server URL` or `COBALT_SERVER`). They call
+  `GET /api/runs` and `GET /api/runs/{run_id}` on the server; the server's API prefix must be
+  the default `/api`. If the server runs `--auth api-key`, set `COBALT_API_KEY`. A server error
+  (unknown run, wrong key, server unreachable) is logged and gives exit status 1.
+- `run` in client mode still reports "not implemented yet" (exit status 1).
+
+The
 code lives in `src/cobalt/pipeline/`: the definition model (`Pipeline`, `Task`), the loader, text
 rendering, the run model (`PipelineRun`, `TaskRun`) and the run registry (`RunRegistry`).
 

@@ -38,8 +38,8 @@ def test_server_only_commands_unsupported_in_cli_mode(
     assert "not implemented" not in caplog.text
 
 
-@pytest.mark.parametrize(("argv", "command"), SERVER_ONLY_CASES)
-def test_server_only_commands_not_implemented_in_client_mode(no_server_env, caplog, argv, command):
+def test_run_not_implemented_in_client_mode(no_server_env, caplog):
+    argv, command = SERVER_ONLY_CASES[0]
     with caplog.at_level(logging.WARNING):
         exit_code = main(["--server", "http://lab-a:8000", *argv])
 
@@ -51,7 +51,7 @@ def test_server_only_commands_not_implemented_in_client_mode(no_server_env, capl
 
 def test_server_only_command_client_mode_from_env(monkeypatch, caplog):
     monkeypatch.setenv(SERVER_ENV, "http://lab-a")
-    assert main(["runs", "list"]) == 1
+    assert main(["run", "p.yaml"]) == 1
     assert "not implemented yet in client mode (server http://lab-a)" in caplog.text
 
 
