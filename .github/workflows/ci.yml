@@ -69,7 +69,7 @@ jobs:
 
       - name: CLI mode
         run: |
-          docker run --rm -v "$PWD/tests/test_data:/data:ro" "$IMAGE" stats ls_orchid.fasta
+          docker run --rm -v "$PWD/tests/test_data:/data:ro" "$IMAGE" cobalt stats ls_orchid.fasta
 
       - name: Server refuses to start without API keys
         run: |

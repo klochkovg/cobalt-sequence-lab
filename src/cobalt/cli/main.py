@@ -25,20 +25,6 @@ log = logging.getLogger(__name__)
 EXIT_BROKEN_PIPE = 141
 
 
-def _serve_main(argv: Sequence[str] | None) -> int:
-    """Run `serve`, importing it lazily because its dependencies are optional."""
-    try:
-        from cobalt.cli import serve
-    except ImportError as exc:
-        log.error(
-            "cobalt serve requires optional dependencies (%s is missing). "
-            'Install them with: pip install "cobalt-sequence-lab[serve]"',
-            exc.name,
-        )
-        return 1
-    return serve.main(argv)
-
-
 COMMAND_HANDLERS: dict[str, Callable[[Sequence[str] | None], int]] = {
     "inspect": inspect.main,
     "stats": stats.main,
@@ -49,7 +35,6 @@ COMMAND_HANDLERS: dict[str, Callable[[Sequence[str] | None], int]] = {
     "pipeline": pipeline.main,
     "runs": runs.main,
     "help": help.main,
-    "serve": _serve_main,
 }
 
 # Handlers of SERVER_ONLY_COMMANDS: they also take the server URL (None in local mode)
@@ -97,7 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the top-level cobalt CLI dispatcher."""
     parsed = build_parser().parse_args(argv)
-    configure_logging(parsed.verbose, parsed.quiet, server=parsed.command == "serve")
+    configure_logging(parsed.verbose, parsed.quiet)
     handler = COMMAND_HANDLERS[parsed.command]
     server = None
     if parsed.command not in LOCAL_COMMANDS:

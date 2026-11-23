@@ -14,9 +14,9 @@ from typing import TextIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from cobalt.analysis.processor import InputFileError, load_file, process_records
-from cobalt.model.record import SequenceRecord
-from cobalt.model.stats import STATS_FIELDNAMES, SortKey, StatsRow, build_stats_rows
+from cobalt.core.analysis.processor import InputFileError, load_file, process_records
+from cobalt.core.model.record import SequenceRecord
+from cobalt.core.model.stats import STATS_FIELDNAMES, SortKey, StatsRow, build_stats_rows
 
 log = logging.getLogger(__name__)
 

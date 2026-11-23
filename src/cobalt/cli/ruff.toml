@@ -1,0 +1,5 @@
+# The CLI may import itself and core, never the server (see [tool.ruff.lint] in pyproject.toml)
+extend = "../../../pyproject.toml"
+
+[lint.flake8-tidy-imports.banned-api]
+"cobalt.server".msg = "the CLI must not import the server; reach it over HTTP"

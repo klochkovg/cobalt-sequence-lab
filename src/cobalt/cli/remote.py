@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 SERVER_ENV = "COBALT_SERVER"
 
 # Commands that always run in this process, whatever --server or $COBALT_SERVER say
-LOCAL_COMMANDS = frozenset({"serve", "help", "pipeline"})
+LOCAL_COMMANDS = frozenset({"help", "pipeline"})
 
 # Commands that work only against a server: they get the resolved server URL (None in local
 # mode) themselves instead of going through `run_remote`

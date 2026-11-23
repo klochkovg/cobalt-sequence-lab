@@ -12,7 +12,7 @@ from Bio.SeqRecord import SeqRecord
 
 from cobalt.cli.main import main
 from cobalt.cli.stats import output_format
-from cobalt.model.stats import STATS_FIELDNAMES
+from cobalt.core.model.stats import STATS_FIELDNAMES
 
 DATA_DIR = Path(__file__).parent.parent.parent / "test_data"
 

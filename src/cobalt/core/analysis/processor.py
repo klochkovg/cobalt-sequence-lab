@@ -1,0 +1,252 @@
+"""Main processing code."""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Sequence
+from pathlib import Path
+
+from Bio import SeqIO, SeqUtils
+from Bio.Data import IUPACData
+from Bio.SeqRecord import SeqRecord
+
+from cobalt.core.analysis.inspect import (
+    canonical_molecule_type,
+    find_warnings,
+    guess_molecule_type,
+    has_sequence,
+    valid_letters,
+)
+from cobalt.core.io.sniff import is_blank, open_text, sniff_compression, sniff_format
+from cobalt.core.model.record import AnalysisResult, SequenceRecord
+
+log = logging.getLogger(__name__)
+
+
+NUCLEOTIDE_TYPES = {"DNA", "RNA"}
+
+
+def calculate_gc_fraction(seq: str, molecule_type: str) -> float | None:
+    """Return the GC fraction of a nucleotide sequence, None for other molecule types."""
+    if molecule_type not in NUCLEOTIDE_TYPES:
+        return None
+    return SeqUtils.gc_fraction(seq)
+
+
+# Phred score threshold of the q30_fraction column (1 error in 1000 bases)
+Q30 = 30
+# Offset of the Sanger FASTQ quality encoding (Phred+33)
+PHRED_OFFSET = 33
+
+
+def quality_stats(phred: Sequence[int]) -> tuple[float, int, float] | None:
+    """Return (mean, min, share of bases >= Q30) of Phred scores; None for an empty list."""
+    if not phred:
+        return None
+    return sum(phred) / len(phred), min(phred), sum(1 for q in phred if q >= Q30) / len(phred)
+
+
+def encode_quality(phred: Sequence[int]) -> str:
+    """Encode Phred scores as a Sanger FASTQ (Phred+33) quality string."""
+    return "".join(chr(q + PHRED_OFFSET) for q in phred)
+
+
+def decode_quality(quality: str) -> list[int]:
+    """Decode a Sanger FASTQ (Phred+33) quality string to Phred scores."""
+    return [ord(c) - PHRED_OFFSET for c in quality]
+
+
+def invalid_char_count(seq_record: SeqRecord, type: str) -> int:
+    """Calculate and return number of invalid symbols for the particular sequence"""
+    if seq_record.seq is None:
+        return 0
+    seq_str = str(seq_record.seq).upper()
+    valid = valid_letters(type)
+    return sum(1 for c in seq_str if c not in valid)
+
+
+AMBIGUOUS_DNA = set(IUPACData.ambiguous_dna_letters) - set(IUPACData.unambiguous_dna_letters)
+AMBIGUOUS_RNA = set(IUPACData.ambiguous_rna_letters) - set(IUPACData.unambiguous_rna_letters)
+AMBIGUOUS_PROTEIN = set(IUPACData.extended_protein_letters) - set(IUPACData.protein_letters)
+
+
+def calculate_alphabet_class(seq: str, molecule_type: str) -> str:
+    """Classify the sequence's alphabet relative to the IUPAC letter tiers.
+
+    Returns "unambiguous" if every letter is in the strict (non-ambiguity-code)
+    alphabet for `molecule_type`, "ambiguous" if it uses IUPAC ambiguity codes
+    but nothing outside the valid alphabet, "invalid" if it contains characters
+    outside the valid alphabet entirely, or "unknown" if the sequence is empty
+    or `molecule_type` isn't recognized.
+    """
+    seq_str = str(seq).upper()
+    if not seq_str:
+        return "unknown"
+
+    if molecule_type not in {"DNA", "RNA", "protein"}:
+        return "unknown"
+    alphabet = valid_letters(molecule_type)
+
+    ambiguity_letters = {
+        "DNA": AMBIGUOUS_DNA,
+        "RNA": AMBIGUOUS_RNA,
+        "protein": AMBIGUOUS_PROTEIN,
+    }[molecule_type]
+
+    letters = set(seq_str)
+    if letters - alphabet:
+        return "invalid"
+    if letters & ambiguity_letters:
+        return "ambiguous"
+    return "unambiguous"
+
+
+def calculate_ambiguity_fraction(seq: str, molecule_type: str) -> float:
+    """Return the share of IUPAC ambiguity codes in `seq`; 0.0 for an empty sequence."""
+    seq_str = str(seq).upper()
+    if not seq_str:
+        return 0.0
+    ambiguity_letters = {
+        "DNA": AMBIGUOUS_DNA,
+        "RNA": AMBIGUOUS_RNA,
+        "protein": AMBIGUOUS_PROTEIN,
+    }.get(molecule_type, set())
+    ambiguous_count = sum(1 for c in seq_str if c in ambiguity_letters)
+    return ambiguous_count / len(seq_str)
+
+
+def read_file(path, type) -> AnalysisResult | None:
+    """Provide some general information about records.
+    What should be implemented:
+    - number of records
+    - guessed molecule types
+    - min/max/mean length
+    - formats detected
+    - warning counts
+    """
+
+    with open_text(path) as handle:
+        records = list(SeqIO.parse(handle, type))
+    return process_records(records, type)
+
+
+class InputFileError(Exception):
+    """An input file that can't be read; the message is ready to be logged."""
+
+
+def load_file(path: Path) -> AnalysisResult | None:
+    """Detect the format of `path` from its content and read it.
+
+    FASTA, GenBank, FASTQ, PDB and mmCIF (one protein sequence per chain); plain, gzip and bzip2
+    files are supported. Returns None for an empty file and raises InputFileError if the file is
+    missing, unrecognized or can't be parsed.
+    """
+    if not path.is_file():
+        raise InputFileError(f"file not found: {path}")
+    fmt = sniff_format(path)
+    if fmt is None:
+        try:
+            blank = is_blank(path)
+        except (OSError, EOFError) as exc:
+            raise InputFileError(f"{path}: cannot read: {exc}") from exc
+        if blank:
+            log.debug("%s: empty file", path)
+            return None
+        raise InputFileError(
+            f"{path}: unrecognized format, expected FASTA (starts with '>'), "
+            "GenBank (starts with 'LOCUS'), FASTQ (starts with '@'), "
+            "PDB (starts with a record name like 'HEADER' or 'ATOM') or mmCIF (starts with 'data_')"
+        )
+    log.debug("%s: format=%s, compression=%s", path, fmt, sniff_compression(path))
+    try:
+        result = read_file(path, fmt)
+    except (ValueError, EOFError, OSError) as exc:
+        message = str(exc).strip().splitlines()[0] if str(exc).strip() else type(exc).__name__
+        raise InputFileError(f"{path}: cannot parse as {fmt}: {message}") from exc
+    if result is not None:
+        for record in result.records:
+            record.source_file = str(path)
+    return result
+
+
+def annotation_str(seq_record: SeqRecord, key: str) -> str | None:
+    """Return a record annotation as a string, or None if it is missing."""
+    value = seq_record.annotations.get(key)
+    return None if value is None else str(value)
+
+
+# Biopython's SeqRecord default when no description is given
+UNKNOWN_DESCRIPTION = "<unknown description>"
+
+
+def record_description(seq_record: SeqRecord) -> str:
+    """Return the description without Biopython's placeholder or a leading copy of the ID.
+
+    FASTA parsing puts the whole header line into the description, so `>p1 kinase` gives
+    "p1 kinase"; this returns "kinase".
+    """
+    description = seq_record.description
+    if description == UNKNOWN_DESCRIPTION:
+        return ""
+    first, *rest = description.split(maxsplit=1) or [""]
+    if first == seq_record.id:
+        return rest[0] if rest else ""
+    return description
+
+
+def process_records(records: list[SeqRecord], type: str) -> AnalysisResult | None:
+    lengths = [len(record.seq) if record.seq is not None else 0 for record in records]
+    if not lengths:
+        log.debug("no records to process")
+        return None
+
+    result_array = []
+    molecule_types = []
+    for seq_record in records:
+        molecule_type = annotation_str(seq_record, "molecule_type")
+        defined = has_sequence(seq_record)
+        # Length-only records (GenBank WGS/CONTIG) have nothing to compute from
+        sequence = str(seq_record.seq) if defined else None
+        seq_type = canonical_molecule_type(molecule_type) or (
+            guess_molecule_type(seq_record.seq) if defined else "unknown"
+        )
+        molecule_types.append(seq_type)
+        phred = seq_record.letter_annotations.get("phred_quality")
+        stats = quality_stats(phred) if phred is not None else None
+        result = SequenceRecord(
+            id=str(seq_record.id),
+            description=record_description(seq_record),
+            length=len(seq_record),
+            sequence=sequence,
+            gc_fraction=(
+                calculate_gc_fraction(sequence, seq_type) if sequence is not None else None
+            ),
+            ambiguity_fraction=(
+                calculate_ambiguity_fraction(sequence, seq_type) if sequence is not None else None
+            ),
+            invalid_char_count=invalid_char_count(seq_record, seq_type) if defined else None,
+            alphabetic_class=(
+                calculate_alphabet_class(sequence, seq_type) if sequence is not None else "unknown"
+            ),
+            source_format=type,
+            type=seq_type,
+            organism=annotation_str(seq_record, "organism"),
+            molecule_type=molecule_type,
+            topology=annotation_str(seq_record, "topology"),
+            feature_count=len(seq_record.features),
+            quality=encode_quality(phred) if phred is not None else None,
+            mean_quality=stats[0] if stats else None,
+            min_quality=stats[1] if stats else None,
+            q30_fraction=stats[2] if stats else None,
+        )
+        result_array.append(result)
+
+    return AnalysisResult(
+        warnings=find_warnings(records, molecule_types),
+        records_num=len(lengths),
+        min=min(lengths),
+        max=max(lengths),
+        mean=sum(lengths) / len(lengths),
+        type=type,
+        records=result_array,
+    )

@@ -15,7 +15,6 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
     "validate": "Check records for problems (empty sequences, duplicate IDs, invalid chars)",
     "normalize": "Write cleaned (uppercased) records as FASTA, GenBank and/or FASTQ",
     "foldrna": "Predict RNA secondary structure (dot-bracket + MFE); needs the 'rna' extra",
-    "serve": "Run the REST API server (needs the optional 'serve' dependencies)",
     "run": "Run a pipeline defined in YAML (not implemented yet)",
     "pipeline": "Check a pipeline definition and print its structure, or print its DAG",
     "runs": "List past pipeline runs or show one run's provenance (not implemented yet)",
@@ -45,20 +44,12 @@ def print_overview() -> None:
         print(f"  {name:<{width}}  {description}")
     print()
     print("Run 'cobalt help <command>' or 'cobalt <command> --help' for command options.")
+    print("The REST API server is a separate command: cobalt-server --help")
 
 
 def print_command_help(command: str) -> int:
     """Print the full argparse help of `command`."""
-    try:
-        module = importlib.import_module(f"cobalt.cli.{command}")
-    except ImportError as exc:
-        log.error(
-            "cobalt %s requires optional dependencies (%s is missing). "
-            'Install them with: pip install "cobalt-sequence-lab[serve]"',
-            command,
-            exc.name,
-        )
-        return 1
+    module = importlib.import_module(f"cobalt.cli.{command}")
     module.build_parser().print_help()
     return 0
 

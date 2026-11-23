@@ -77,5 +77,5 @@ thoughts.md
 !.claude/settings.json
 .claude/settings.local.json
 
-# cobalt serve: default server config and storage
+# cobalt-server: default server config and storage
 .cobalt-server/

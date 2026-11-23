@@ -1,7 +1,9 @@
 import subprocess
 import sys
 
-from cobalt.cli.main import EXIT_BROKEN_PIPE
+import pytest
+
+from cobalt.cli.main import EXIT_BROKEN_PIPE, main
 
 
 def test_closed_stdout_exits_quietly(tmp_path):
@@ -23,3 +25,10 @@ def test_closed_stdout_exits_quietly(tmp_path):
     assert proc.wait(timeout=30) == EXIT_BROKEN_PIPE
     assert "Traceback" not in stderr
     assert "BrokenPipeError" not in stderr
+
+
+def test_serve_is_not_a_cli_command(capsys):
+    # The server is its own command, cobalt-server
+    with pytest.raises(SystemExit):
+        main(["serve"])
+    assert "invalid choice: 'serve'" in capsys.readouterr().err

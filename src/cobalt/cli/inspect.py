@@ -10,10 +10,10 @@ from collections.abc import Iterable, Sequence
 from itertools import islice
 from pathlib import Path
 
-from cobalt.analysis.processor import InputFileError, load_file
-from cobalt.io.sniff import sniff_compression
-from cobalt.model.inspect import build_inspect_report
-from cobalt.model.record import AnalysisResult, SequenceRecord
+from cobalt.core.analysis.processor import InputFileError, load_file
+from cobalt.core.io.sniff import sniff_compression
+from cobalt.core.model.inspect import build_inspect_report
+from cobalt.core.model.record import AnalysisResult, SequenceRecord
 
 log = logging.getLogger(__name__)
 

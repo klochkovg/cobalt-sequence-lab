@@ -1,0 +1,5 @@
+# The server may import itself and core, never the CLI (see [tool.ruff.lint] in pyproject.toml)
+extend = "../../../pyproject.toml"
+
+[lint.flake8-tidy-imports.banned-api]
+"cobalt.cli".msg = "the server must not import the CLI; share code through cobalt.core"

@@ -7,8 +7,8 @@ import logging
 from collections.abc import Sequence
 from pathlib import Path
 
-from cobalt.pipeline import PipelineFileError, load_pipeline
-from cobalt.pipeline.render import format_graph, format_structure
+from cobalt.core.pipeline import PipelineFileError, load_pipeline
+from cobalt.core.pipeline.render import format_graph, format_structure
 
 log = logging.getLogger(__name__)
 

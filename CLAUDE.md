@@ -7,19 +7,28 @@ Guidance for Claude Code when working in this repository.
 Cobalt Sequence Lab: a Python CLI (`cobalt`) and optional FastAPI server for experimenting with
 Biopython on sequence data (FASTA, GenBank). See `README.md` for goals, roadmap and command examples.
 
-- Source: `src/cobalt/` (src layout, package `cobalt`)
-  - `cli/`: one module per subcommand (`inspect`, `stats`, `validate`, `normalize`, `serve`, `help`),
-    dispatched from `cli/main.py`
-  - `analysis/`: processing logic behind the commands
-  - `io/`: readers, writers, format sniffing
-  - `model/`: data model (records, stats, QC)
-  - `logging_config.py`: logging setup
+- Source: `src/cobalt/` (src layout, package `cobalt`), a shared core and two front-ends
+  - `core/`: shared by both front-ends; imports neither of them
+    - `analysis/`: processing logic behind the commands
+    - `io/`: readers, writers, format sniffing
+    - `model/`: data model (records, stats, QC)
+    - `pipeline/`: pipeline definitions, loader, rendering, run model
+  - `cli/`: the `cobalt` command, one module per subcommand (`inspect`, `stats`, `validate`,
+    `normalize`, `run`, `runs`, `help`, ...), dispatched from `cli/main.py`; client mode talks to
+    the server over HTTP only (`cli/client.py`)
+  - `server/`: the `cobalt-server` command (`server/main.py`): FastAPI app (`app.py`), upload
+    handling, middleware, auth, config file, run registry
+  - `logging_config.py`: logging setup, shared by both commands
+- `cli` and `server` must never import each other, and `core` imports neither. Ruff rule TID251
+  enforces it (`[tool.ruff.lint]` in `pyproject.toml` plus `src/cobalt/{cli,server}/ruff.toml`).
+  Tests may import across.
 - Tests: `tests/cobalt/...` mirrors `src/cobalt/...`; sample inputs in `tests/test_data/`
 
 ## Environment
 
 - Python 3.12, conda env `biolab-dev` (`environment.yml`); package installed with `pip install -e ".[dev]"`
-- `serve` dependencies (fastapi, uvicorn, pydantic) are optional and imported lazily
+- Server dependencies (fastapi, uvicorn, pydantic) are the optional `server` extra;
+  `server/main.py` imports them lazily so a missing extra gives a clear error
 
 ## Commands
 

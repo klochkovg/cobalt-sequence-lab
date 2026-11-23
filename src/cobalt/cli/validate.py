@@ -10,12 +10,12 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TextIO
 
-from cobalt.analysis.processor import InputFileError, load_file
-from cobalt.analysis.validation import print_warnings
 from cobalt.cli.stats import write_stats_csv
-from cobalt.io.sniff import sniff_compression
-from cobalt.model.qc import QCReport, build_qc_report
-from cobalt.model.stats import build_stats_rows
+from cobalt.core.analysis.processor import InputFileError, load_file
+from cobalt.core.analysis.validation import print_warnings
+from cobalt.core.io.sniff import sniff_compression
+from cobalt.core.model.qc import QCReport, build_qc_report
+from cobalt.core.model.stats import build_stats_rows
 
 log = logging.getLogger(__name__)
 

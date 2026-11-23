@@ -11,9 +11,9 @@ from pathlib import Path
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from cobalt.analysis.folding import ADAPTERS, DEFAULT_ADAPTER, fold_records, write_fold_results
-from cobalt.analysis.processor import InputFileError, load_file, process_records
-from cobalt.model.record import SequenceRecord
+from cobalt.core.analysis.folding import ADAPTERS, DEFAULT_ADAPTER, fold_records, write_fold_results
+from cobalt.core.analysis.processor import InputFileError, load_file, process_records
+from cobalt.core.model.record import SequenceRecord
 
 log = logging.getLogger(__name__)
 

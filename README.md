@@ -107,16 +107,18 @@ cobalt validate input.fasta --json             # the same report on stdout (the 
 cobalt foldrna input.fasta                  # RNAfold-style: >id, sequence, dot-bracket (MFE)
 cobalt foldrna --input GGGAAAUCC --adapter viennarna   # viennarna is the default (and only) adapter
 # foldrna needs: pip install "cobalt-sequence-lab[rna]"
-cobalt serve
-cobalt serve --cors                         # allow any origin (UI development)
-cobalt serve --cors http://localhost:5173   # allow specific origin(s)
-COBALT_API_KEYS=key1,key2 cobalt serve --host 0.0.0.0 --auth api-key   # require X-API-Key
-cobalt serve --host 0.0.0.0 --allow-no-auth   # no auth: a gateway or service mesh handles it
-cobalt serve --api-prefix ""                # pre-0.2.0 paths, without the /api prefix
-cobalt serve --max-upload-mb 500            # request body limit (default 100, 0 for none)
-cobalt serve --ui-dist ../cobalt-sequence-lab-ui/dist   # also serve the built UI at /
-cobalt serve --config /etc/cobalt/server.yaml   # another config file (see Server configuration)
-cobalt serve --storage-dir /srv/cobalt          # server file storage
+
+# REST API server: a separate command; needs pip install "cobalt-sequence-lab[server]"
+cobalt-server
+cobalt-server --cors                         # allow any origin (UI development)
+cobalt-server --cors http://localhost:5173   # allow specific origin(s)
+COBALT_API_KEYS=key1,key2 cobalt-server --host 0.0.0.0 --auth api-key   # require X-API-Key
+cobalt-server --host 0.0.0.0 --allow-no-auth   # no auth: a gateway or service mesh handles it
+cobalt-server --api-prefix ""                # pre-0.2.0 paths, without the /api prefix
+cobalt-server --max-upload-mb 500            # request body limit (default 100, 0 for none)
+cobalt-server --ui-dist ../cobalt-sequence-lab-ui/dist   # also serve the built UI at /
+cobalt-server --config /etc/cobalt/server.yaml   # another config file (see Server configuration)
+cobalt-server --storage-dir /srv/cobalt          # server file storage
 ```
 
 Every endpoint is served under `/api` (`--api-prefix` changes it; `""` removes it): `GET /api/`
@@ -170,7 +172,7 @@ curl -F file=@input.gb -F format=fasta http://127.0.0.1:8000/api/normalize > cle
 
 ## Server configuration
 
-`cobalt serve` reads its settings from a YAML file, by default
+`cobalt-server` reads its settings from a YAML file, by default
 `./.cobalt-server/cobalt-config.yaml` in the working directory. If that file is missing, it is
 created with the default values. A file given with `--config PATH` must exist. The
 server's file storage (`storage_dir`) defaults to the same `.cobalt-server` directory and is
@@ -189,7 +191,7 @@ ui_dist: null
 storage_dir: .        # relative paths are relative to this file's directory
 ```
 
-- Precedence: defaults → config file → command-line flags. `cobalt serve --port 8080` overrides
+- Precedence: defaults → config file → command-line flags. `cobalt-server --port 8080` overrides
   `port: 9000` from the file.
 - Files from other cobalt versions load: missing keys get their defaults, and unknown keys are
   ignored with a warning (as is a newer `config_version`). The file is never rewritten.
@@ -219,7 +221,9 @@ once, in `cobalt.cli.main`, by `cobalt.logging_config.configure_logging`.
 
 Global flags go **before** the command: `cobalt -v stats input.fasta`, not `cobalt stats input.fasta -v`.
 
-Precedence for the level: `-v`/`-q` → `COBALT_LOG_LEVEL` → default (WARNING standalone, INFO for `serve`).
+Precedence for the level: `-v`/`-q` → `COBALT_LOG_LEVEL` → default (WARNING standalone, INFO for
+`cobalt-server`). `cobalt-server` takes the same `-v`/`-q` flags; as it already logs at INFO, `-v`
+gives debug.
 
 ## Standalone (CLI, scripts, pipelines)
 
@@ -238,7 +242,7 @@ cobalt stats input.fasta > stats.csv 2> cobalt.log   # results and diagnostics i
 In workflow managers (Nextflow, Snakemake, CI) stderr is not a terminal, so `auto` already
 switches to plain one-line messages, which are friendly to log collectors and `grep`.
 
-## Server (`cobalt serve`)
+## Server (`cobalt-server`)
 
 The default level is INFO and every line carries a timestamp and logger name. Uvicorn's own
 startup and access logs go through the same handler (uvicorn is started with `log_config=None`),
@@ -252,9 +256,9 @@ so there is a single, uniform log stream on stderr:
 Typical setups:
 
 ```bash
-cobalt serve                                   # local development: rich, coloured output
-COBALT_LOG_FORMAT=plain cobalt serve > /dev/null 2>> server.log   # local log file
-cobalt -q serve                                # hide access logs, keep errors
+cobalt-server                                   # local development: rich, coloured output
+COBALT_LOG_FORMAT=plain cobalt-server > /dev/null 2>> server.log   # local log file
+cobalt-server -q                               # hide access logs, keep errors
 ```
 
 In a container or under systemd, leave the output on stderr and let the platform collect it
@@ -271,6 +275,16 @@ pip install -e .
 ```
 
 RNA folding (`cobalt foldrna`) uses ViennaRNA: `pip install -e ".[rna]"` (included in `.[dev]`).
+The REST API server (`cobalt-server`) needs `pip install -e ".[server]"` (also in `.[dev]`).
+
+## Code layout
+
+The package has a shared core and two front-ends, which never import each other (a ruff rule,
+TID251, enforces it):
+
+- `src/cobalt/core/`: sequence I/O, analysis, data model and pipeline definitions
+- `src/cobalt/cli/`: the `cobalt` command; in client mode it talks to the server over HTTP only
+- `src/cobalt/server/`: the `cobalt-server` command and its FastAPI app
 
 Local installation
 
@@ -340,14 +354,14 @@ Cobalt runs in one of two modes:
 
 - **local** (default): the command does the work in the current process, as it does today. No
   network connections are made. Functionality of pipelines is limited or purely synchronous.
-- **client-server**: one instance runs as the server (`cobalt serve`). Other instances run as
+- **client-server**: one instance runs as the server (`cobalt-server`). Other instances run as
   clients: they send the work to the server and print or write the result as a local run would.
 
 Local mode is used unless a server URL is given, with the global `--server` flag or the
 `COBALT_SERVER` environment variable:
 
 ```bash
-cobalt serve --host 0.0.0.0 --auth api-key                    # machine A: the server
+cobalt-server --host 0.0.0.0 --auth api-key                    # machine A: the server
 
 cobalt stats input.fasta                                      # local, as today
 cobalt --server http://lab-a:8000 stats input.fasta           # client: processed on lab-a
@@ -358,7 +372,7 @@ cobalt --local stats input.fasta                              # local, even with
 
 | Control              | Effect                                                       |
 | -------------------- | ------------------------------------------------------------ |
-| `--server URL`       | client mode, send the work to the cobalt server at `URL`     |
+| `--server URL`       | client mode, send the work to the cobalt-serverr at `URL`     |
 | `--local`            | local mode, overrides `COBALT_SERVER`                        |
 | `COBALT_SERVER=URL`  | client mode when neither `--server` nor `--local` is given   |
 | `COBALT_API_KEY=key` | key sent as `X-API-Key` to a server running `--auth api-key` |
@@ -379,7 +393,7 @@ Rules:
   `http://` to a host that isn't loopback.
 - In client mode, the client checks the server version (`GET /api/`) first, so a mismatch gives a
   clear error.
-- `serve` and `help` always run locally and ignore `--server` and `COBALT_SERVER`.
+- `help` and `pipeline` always run locally and ignore `--server` and `COBALT_SERVER`.
 - `run` and `runs` are server-only: in local mode they fail with "not supported in CLI mode".
 - `pipeline check` and `pipeline graph` only read the YAML, so they run locally in both modes.
 - Client mode starts with the commands the server already exposes (`stats`, `inspect`,
@@ -389,9 +403,9 @@ Rules:
   `POST /api/run`) that answer 501 Not Implemented. `GET /api/runs` and `GET /api/runs/{run_id}`
   answer from the server's run registry (see [Runs](#runs)), and `cobalt runs` calls them.
 
-## Authentication for `serve` (microservice deployment)
+## Authentication for `cobalt-server` (microservice deployment)
 
-The goal is to run `cobalt serve` as one service in a microservice system, so authentication is
+The goal is to run `cobalt-server` as one service in a microservice system, so authentication is
 pluggable and selected with `--auth`. Each mode is a FastAPI dependency attached to the router
 with the processing endpoints (`/api/stats`, `/api/inspect`, `/api/validate`, `/api/normalize`,
 the `/api/foldrna` and `/api/run` stubs, and `/api/runs`); `GET /api/` (version info) and
@@ -418,10 +432,10 @@ they may do.
 
 ## Running in Docker
 
-The `Dockerfile` at the repository root builds one image with the package and its `serve`
+The `Dockerfile` at the repository root builds one image with the package and its `server`
 dependencies (installed with pip from `pyproject.toml`; the conda environment is for development
-only). The entry point is `cobalt`, and by default the image runs
-`cobalt serve --host 0.0.0.0 --port 8000 --auth api-key`.
+only). It has both commands, `cobalt` and `cobalt-server`, and by default runs
+`cobalt-server --host 0.0.0.0 --port 8000 --auth api-key`.
 
 ```bash
 make docker-build                              # tags cobalt-sequence-lab:<version> and :latest
@@ -432,10 +446,10 @@ docker run --rm -p 8000:8000 -e COBALT_API_KEYS=key1,key2 cobalt-sequence-lab
 curl -H "X-API-Key: key1" -F file=@seqs.fasta http://127.0.0.1:8000/api/stats
 
 # Behind a gateway or service mesh that authenticates: override the command
-docker run --rm -p 8000:8000 cobalt-sequence-lab serve --host 0.0.0.0 --allow-no-auth
+docker run --rm -p 8000:8000 cobalt-sequence-lab cobalt-server --host 0.0.0.0 --allow-no-auth
 
-# CLI: any other command runs once; mount the input files to /data (the working directory)
-docker run --rm -v "$PWD:/data" cobalt-sequence-lab stats seqs.fasta
+# CLI: run `cobalt` instead; mount the input files to /data (the working directory)
+docker run --rm -v "$PWD:/data" cobalt-sequence-lab cobalt stats seqs.fasta
 ```
 
 Notes:
@@ -481,12 +495,13 @@ cobalt --server http://lab-a:8000 runs list --json     # the server's JSON answe
 - `run` in client mode still reports "not implemented yet" (exit status 1).
 
 The
-code lives in `src/cobalt/pipeline/`: the definition model (`Pipeline`, `Task`), the loader, text
-rendering, the run model (`PipelineRun`, `TaskRun`) and the run registry (`RunRegistry`).
+code lives in `src/cobalt/core/pipeline/`: the definition model (`Pipeline`, `Task`), the loader,
+text rendering and the run model (`PipelineRun`, `TaskRun`). The run registry (`RunRegistry`) is
+server-side, in `src/cobalt/server/registry.py`.
 
 ### Runs
 
-`cobalt serve` keeps one run registry for its whole lifetime. It holds every pipeline run with its
+`cobalt-server` keeps one run registry for its whole lifetime. It holds every pipeline run with its
 status (`pending`, `running`, `succeeded`, `failed`, `cancelled`) and the status of each task.
 Each run is stored in `<storage_dir>/runs/<run_id>/`: `manifest.json` (the run and its tasks) and
 `pipeline.yaml` (a copy of the definition, for provenance). The server reloads the manifests at

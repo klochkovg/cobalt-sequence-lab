@@ -10,8 +10,8 @@ from pathlib import Path
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
-from cobalt.analysis.normalize import OutputFormat, build_seq_records, records_for_format
-from cobalt.analysis.processor import InputFileError, load_file
+from cobalt.core.analysis.normalize import OutputFormat, build_seq_records, records_for_format
+from cobalt.core.analysis.processor import InputFileError, load_file
 
 log = logging.getLogger(__name__)
 

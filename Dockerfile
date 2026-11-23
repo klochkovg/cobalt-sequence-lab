@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 #
-# Cobalt Sequence Lab image: runs `cobalt serve` by default, and any other `cobalt` command when
-# one is given (`docker run IMAGE stats file.fasta`). See "Running in Docker" in README.md.
+# Cobalt Sequence Lab image: runs `cobalt-server` by default; the CLI runs when given as the
+# command (`docker run IMAGE cobalt stats file.fasta`). See "Running in Docker" in README.md.
 
-# --- build: install the package and its serve dependencies into a venv ---
+# --- build: install the package and its server dependencies into a venv ---
 FROM python:3.12-slim AS build
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -15,8 +15,8 @@ ENV PATH=/opt/venv/bin:$PATH
 WORKDIR /src
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
-# Add `rna` to the extras once /foldrna is implemented: ".[serve,rna]"
-RUN pip install ".[serve]"
+# Add `rna` to the extras once /foldrna is implemented: ".[server,rna]"
+RUN pip install ".[server]"
 
 # --- runtime: the venv only, no build context or pip cache ---
 FROM python:3.12-slim
@@ -34,12 +34,12 @@ ENV PATH=/opt/venv/bin:$PATH \
 
 COPY --from=build /opt/venv /opt/venv
 
-# /data is owned by cobalt: `serve` creates its config and storage in /data/.cobalt-server
+# /data is owned by cobalt: the server creates its config and storage in /data/.cobalt-server
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin cobalt \
     && mkdir -p /data && chown cobalt:cobalt /data
 USER cobalt
 
-# Bind-mount input files here for CLI use: docker run -v "$PWD:/data" IMAGE stats x.fasta
+# Bind-mount input files here for CLI use: docker run -v "$PWD:/data" IMAGE cobalt stats x.fasta
 # For the server, mount a volume here to keep .cobalt-server (config and storage)
 WORKDIR /data
 
@@ -49,7 +49,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]
 
-# Exec form: cobalt is PID 1 and gets SIGTERM directly, so uvicorn shuts down gracefully.
+# Exec form: cobalt-server is PID 1 and gets SIGTERM directly, so uvicorn shuts down gracefully.
 # COBALT_API_KEYS (comma-separated) must be provided at runtime; it is never baked into the image.
-ENTRYPOINT ["cobalt"]
-CMD ["serve", "--host", "0.0.0.0", "--port", "8000", "--auth", "api-key"]
+CMD ["cobalt-server", "--host", "0.0.0.0", "--port", "8000", "--auth", "api-key"]

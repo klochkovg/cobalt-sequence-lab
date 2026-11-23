@@ -15,7 +15,7 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-# API prefix of the server (`cobalt serve --api-prefix`, default /api)
+# API prefix of the server (`cobalt-server --api-prefix`, default /api)
 API_PREFIX = "/api"
 # API key sent to servers started with --auth api-key
 API_KEY_ENV = "COBALT_API_KEY"

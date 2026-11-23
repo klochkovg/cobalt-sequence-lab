@@ -11,11 +11,11 @@ requires-python = ">=3.12"
 dependencies = ["biopython>=1.83", "rich>=13", "pyyaml>=6"]
 
 [project.optional-dependencies]
-serve = ["fastapi", "uvicorn[standard]", "pydantic>=2", "python-multipart"]
+server = ["fastapi", "uvicorn[standard]", "pydantic>=2", "python-multipart"]
 parquet = ["pyarrow"]
 rna = ["ViennaRNA>=2.6"]  # RNA folding (planned)
 dev = [
-    "cobalt-sequence-lab[serve,parquet,rna]",
+    "cobalt-sequence-lab[server,parquet,rna]",
     "pytest",
     "pytest-cov",
     "httpx2",  # required by fastapi.testclient
@@ -26,6 +26,7 @@ dev = [
 
 [project.scripts]
 cobalt = "cobalt.cli.main:main"
+cobalt-server = "cobalt.server.main:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -36,6 +37,20 @@ where = ["src"]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+
+# Package boundaries: cli and server both build on core, never on each other, and core imports
+# neither. src/cobalt/cli/ruff.toml and src/cobalt/server/ruff.toml let each front-end import
+# itself; tests may import anything.
+[tool.ruff.lint]
+extend-select = ["TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"cobalt.cli".msg = "only cobalt.cli may import the CLI; reach the server over HTTP"
+"cobalt.server".msg = "only cobalt.server may import the server; share code through cobalt.core"
+
+[tool.ruff.lint.per-file-ignores]
+"src/cobalt/__main__.py" = ["TID251"]
+"tests/**" = ["TID251"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

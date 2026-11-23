@@ -26,7 +26,7 @@ format_fix:
 	ruff check --fix src tests
 	ruff format src tests
 
-# Container image for `cobalt serve` (see "Running in Docker" in README.md)
+# Container image for `cobalt-server` (see "Running in Docker" in README.md)
 docker-build:
 	docker build --build-arg VERSION=$(VERSION) -t $(IMAGE):$(VERSION) -t $(IMAGE):latest .
 

@@ -10,8 +10,9 @@ from cobalt.cli import runs
 from cobalt.cli.client import ServerError
 from cobalt.cli.main import main
 from cobalt.cli.remote import SERVER_ENV
-from cobalt.cli.serve import build_app
-from cobalt.pipeline import PipelineRun, RunRegistry, RunStatus, load_pipeline
+from cobalt.core.pipeline import PipelineRun, RunStatus, load_pipeline
+from cobalt.server.app import build_app
+from cobalt.server.registry import RunRegistry
 
 SAMPLE = Path(__file__).parents[2] / "test_data" / "pipeline_test_v1.yaml"
 SERVER = "http://lab-a:8000"

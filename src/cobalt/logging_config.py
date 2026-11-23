@@ -1,7 +1,7 @@
 """Logging setup for the cobalt CLI and server.
 
 Library modules only call `logging.getLogger(__name__)`; handlers are installed
-once, by the CLI entry point, through `configure_logging`.
+once, by the entry point (`cobalt` or `cobalt-server`), through `configure_logging`.
 
 Diagnostics (errors, warnings, debug details) go to stderr. Command results
 (tables, reports, sequences) are written to stdout or files and are not logged.
