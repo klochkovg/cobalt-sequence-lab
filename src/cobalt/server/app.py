@@ -60,6 +60,15 @@ NORMALIZE_HEADERS = [
     "X-Records-Skipped",
 ]
 
+# Temporary placeholder: the server has no users yet, so /me returns this name to every caller
+DEFAULT_USER_NAME = "lab user"
+
+
+class Me(BaseModel):
+    """The current user, as `GET /me` returns it."""
+
+    name: str
+
 
 class FoldRequest(BaseModel):
     """Request body for RNA folding of a manual sequence input."""
@@ -108,7 +117,7 @@ def build_app(
     serves the built UI at `/`; it needs a non-empty `api_prefix`.
     `runs` is the run registry the app keeps for its lifetime (`app.state.runs`); by default a
     new in-memory one. `/runs` and `/runs/{run_id}` answer from it; `/foldrna` and `/run` are
-    stubs that answer 501 Not Implemented for now.
+    stubs that answer 501 Not Implemented for now. `/me` returns a hardcoded user for now.
     """
     prefix = normalize_api_prefix(api_prefix)
     if ui_dist is not None and not prefix:
@@ -152,6 +161,10 @@ def build_app(
     @public.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @api.get("/me", response_model=Me)
+    async def me() -> Me:
+        return Me(name=DEFAULT_USER_NAME)
 
     @api.post("/stats", response_model=list[StatsRow])
     def stats(

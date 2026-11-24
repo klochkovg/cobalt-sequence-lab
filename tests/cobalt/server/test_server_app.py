@@ -79,6 +79,7 @@ def test_openapi_lists_prefixed_paths():
     expected = {
         "/api/",
         "/api/health",
+        "/api/me",
         "/api/inspect",
         "/api/validate",
         "/api/stats",
@@ -810,6 +811,31 @@ def test_api_key_auth_guards_processing_endpoints():
     assert resp.headers["www-authenticate"] == "ApiKey"
     assert client.post("/api/stats", data=body, headers={"X-API-Key": "wrong"}).status_code == 401
     assert client.post("/api/stats", data=body, headers={"X-API-Key": "k1"}).status_code == 200
+
+
+def test_me():
+    resp = TestClient(build_app()).get("/api/me")
+    assert resp.status_code == 200
+    assert resp.json() == {"name": "lab user"}
+
+
+def test_me_requires_api_key():
+    client = TestClient(build_app(auth=ApiKeyAuth(["k1"])))
+
+    resp = client.get("/api/me")
+    assert resp.status_code == 401
+    assert resp.json() == {"detail": "Invalid or missing API key"}
+    assert resp.headers["www-authenticate"] == "ApiKey"
+    assert client.get("/api/me", headers={"X-API-Key": "wrong"}).status_code == 401
+    resp = client.get("/api/me", headers={"X-API-Key": "k1"})
+    assert resp.status_code == 200
+    assert resp.json() == {"name": "lab user"}
+
+
+def test_me_other_methods_not_allowed():
+    resp = TestClient(build_app()).post("/api/me")
+    assert resp.status_code == 405
+    assert resp.json() == {"detail": "Method Not Allowed"}
 
 
 def test_api_key_auth_leaves_root_public():
