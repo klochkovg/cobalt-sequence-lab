@@ -257,3 +257,82 @@ def test_missing_server_dependencies(monkeypatch, uvicorn_calls, caplog):
     assert main([]) == 1
     assert uvicorn_calls == []
     assert 'pip install "cobalt-sequence-lab[server]"' in caplog.text
+
+
+def users_main(*args):
+    return main(["users", *args])
+
+
+def test_users_add_and_list(uvicorn_calls, capsys):
+    assert users_main("add", "ada") == 0
+    key = capsys.readouterr().out.strip()
+    assert key.startswith("cobalt_")
+    assert Path(".cobalt-server/users.sqlite3").is_file()
+
+    assert users_main("list") == 0
+    out = capsys.readouterr().out
+    assert "lab user (default)" in out
+    rows = [line.split() for line in out.splitlines()]
+    assert ["ada", f"{key[:12]}..."] == rows[1][:2]
+    assert uvicorn_calls == []
+
+
+def test_users_rename_and_remove(uvicorn_calls, capsys):
+    assert users_main("add", "ada") == 0
+    assert users_main("rename", "ada", "bob") == 0
+    assert users_main("remove", "bob") == 0
+    capsys.readouterr()
+    assert users_main("list") == 0
+    out = capsys.readouterr().out
+    assert "ada" not in out
+    assert "bob" not in out
+
+
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        (("remove", "lab user"), "default user can't be removed"),
+        (("remove", "nobody"), "no such user: nobody"),
+        (("rename", "nobody", "x"), "no such user: nobody"),
+        (("add", " "), "must not be empty"),
+    ],
+)
+def test_users_errors(uvicorn_calls, caplog, args, message):
+    assert users_main(*args) == 1
+    assert message in caplog.text
+
+
+def test_users_need_an_action(uvicorn_calls):
+    with pytest.raises(SystemExit):
+        users_main()
+
+
+def test_users_storage_dir_flag(uvicorn_calls, tmp_path, capsys):
+    assert main(["--storage-dir", str(tmp_path / "store"), "users", "add", "ada"]) == 0
+    assert (tmp_path / "store" / "users.sqlite3").is_file()
+
+
+def test_users_unusable_store(uvicorn_calls, caplog):
+    write_config(Path(".cobalt-server/users.sqlite3"), "not a database " * 100)
+    assert users_main("list") == 1
+    assert "could not open user store" in caplog.text
+    assert main([]) == 1
+    assert uvicorn_calls == []
+
+
+def test_main_serves_user_keys(monkeypatch, uvicorn_calls, capsys):
+    monkeypatch.delenv(API_KEYS_ENV, raising=False)
+    assert users_main("add", "ada") == 0
+    key = capsys.readouterr().out.strip()
+    assert main(["--auth", "api-key"]) == 0
+    ((app, _),) = uvicorn_calls
+    client = TestClient(app)
+    assert client.get("/api/me").status_code == 401
+    assert client.get("/api/me", headers={"X-API-Key": key}).json() == {"name": "ada"}
+
+
+def test_main_no_auth_me_is_default_user(uvicorn_calls):
+    assert users_main("rename", "lab user", "Lab") == 0
+    assert main([]) == 0
+    ((app, _),) = uvicorn_calls
+    assert TestClient(app).get("/api/me").json() == {"name": "Lab"}

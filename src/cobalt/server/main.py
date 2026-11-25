@@ -1,5 +1,6 @@
 """Entry point of the cobalt server (`cobalt-server`): flags, config file and startup checks.
 
+Without a command it serves the API; `cobalt-server users ...` manages the user store instead.
 This module imports the optional server dependencies (fastapi, uvicorn) only inside `main`, so
 a missing `server` extra gives an error message instead of a traceback.
 """
@@ -28,6 +29,8 @@ from cobalt.server.config import (
     normalize_api_prefix,
     save_server_config,
 )
+from cobalt.server.users import USERS_DB_FILENAME, UserStore, UserStoreError
+from cobalt.server.users_cli import add_users_parser, run_users
 
 log = logging.getLogger(__name__)
 
@@ -105,6 +108,9 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="Server file storage (default: the config file's directory)",
     )
+    # No command: serve the API
+    commands = parser.add_subparsers(dest="command", metavar="COMMAND")
+    add_users_parser(commands)
     return parser
 
 
@@ -162,6 +168,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     # The server logs at INFO by default, so -v goes straight to DEBUG
     configure_logging(args.verbose + 1 if args.verbose else 0, args.quiet, server=True)
+    if args.command == "users":
+        # Needs no server dependencies: handled before importing them
+        try:
+            return run_users(args, load_config(args))
+        except ServerConfigError as exc:
+            log.error("%s", exc)
+            return 1
     try:
         import uvicorn
 
@@ -194,9 +207,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         log.error("could not read runs directory %s: %s", runs.runs_dir, exc)
         return 1
     log.info("runs loaded: %d", loaded)
+    try:
+        users = UserStore(config.storage_dir / USERS_DB_FILENAME)
+    except UserStoreError as exc:
+        log.error("%s", exc)
+        return 1
+    log.info("users: %d", len(users))
 
     try:
-        auth = build_auth(config.auth)
+        auth = build_auth(config.auth, users)
     except ValueError as exc:
         log.error("%s", exc)
         return 1
@@ -228,6 +247,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_upload_mb=config.max_upload_mb,
         ui_dist=config.ui_dist,
         runs=runs,
+        users=users,
     )
     # log_config=None: uvicorn's loggers propagate to the handler set up by
     # cobalt.logging_config instead of installing uvicorn's own

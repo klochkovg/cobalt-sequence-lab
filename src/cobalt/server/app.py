@@ -45,6 +45,7 @@ from cobalt.server.uploads import (
     stats_rows,
     validate_upload,
 )
+from cobalt.server.users import User, UserStore
 
 log = logging.getLogger(__name__)
 
@@ -59,9 +60,6 @@ NORMALIZE_HEADERS = [
     "X-Records-Written",
     "X-Records-Skipped",
 ]
-
-# Temporary placeholder: the server has no users yet, so /me returns this name to every caller
-DEFAULT_USER_NAME = "lab user"
 
 
 class Me(BaseModel):
@@ -100,6 +98,17 @@ def get_runs(request: Request) -> RunRegistry:
     return registry
 
 
+def get_users(request: Request) -> UserStore:
+    """FastAPI dependency: the user store of the app serving `request`."""
+    users: UserStore = request.app.state.users
+    return users
+
+
+async def _no_auth() -> User | None:
+    """Auth dependency without authentication: every caller is the default user."""
+    return None
+
+
 def build_app(
     cors_origins: Sequence[str] | None = None,
     auth: AuthDependency | None = None,
@@ -107,6 +116,7 @@ def build_app(
     max_upload_mb: int = DEFAULT_MAX_UPLOAD_MB,
     ui_dist: Path | None = None,
     runs: RunRegistry | None = None,
+    users: UserStore | None = None,
 ) -> FastAPI:
     """Build the FastAPI application.
 
@@ -117,7 +127,10 @@ def build_app(
     serves the built UI at `/`; it needs a non-empty `api_prefix`.
     `runs` is the run registry the app keeps for its lifetime (`app.state.runs`); by default a
     new in-memory one. `/runs` and `/runs/{run_id}` answer from it; `/foldrna` and `/run` are
-    stubs that answer 501 Not Implemented for now. `/me` returns a hardcoded user for now.
+    stubs that answer 501 Not Implemented for now.
+    `users` is the user store (`app.state.users`); by default a new in-memory one. `/me` answers
+    the user that `auth` authenticated, or the store's default user for a caller without an
+    account (any caller when `auth` is None).
     """
     prefix = normalize_api_prefix(api_prefix)
     if ui_dist is not None and not prefix:
@@ -134,6 +147,9 @@ def build_app(
     )
     # The one run registry of this app, handed to endpoints by get_runs
     app.state.runs = runs if runs is not None else RunRegistry()
+    app.state.users = users if users is not None else UserStore()
+    # FastAPI runs a dependency once per request: /me reuses the router's auth result
+    caller_dependency = auth or _no_auth
     public = APIRouter()
     api = APIRouter(dependencies=[Depends(auth)] if auth else [])
 
@@ -163,8 +179,13 @@ def build_app(
         return {"status": "ok"}
 
     @api.get("/me", response_model=Me)
-    async def me() -> Me:
-        return Me(name=DEFAULT_USER_NAME)
+    def me(
+        store: Annotated[UserStore, Depends(get_users)],
+        # A default, not Annotated: string annotations can't see the local caller_dependency
+        caller: User | None = Depends(caller_dependency),  # noqa: B008
+    ) -> Me:
+        user = caller if caller is not None else store.default_user()
+        return Me(name=user.name)
 
     @api.post("/stats", response_model=list[StatsRow])
     def stats(

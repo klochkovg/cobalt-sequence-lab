@@ -10,14 +10,16 @@ from fastapi import HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 
 from cobalt.server.config import AUTH_MODES
+from cobalt.server.users import User, UserStore
 
 __all__ = ["AUTH_MODES", "ApiKeyAuth", "AuthDependency", "build_auth", "parse_api_keys"]
 
 API_KEYS_ENV = "COBALT_API_KEYS"
 API_KEY_HEADER = "X-API-Key"
 
-# A FastAPI dependency that returns normally for an authenticated request and raises otherwise
-AuthDependency = Callable[..., Awaitable[None]]
+# A FastAPI dependency that raises for a request that isn't authenticated. Otherwise it returns
+# the caller's User, or None for a caller without an account (who counts as the default user).
+AuthDependency = Callable[..., Awaitable[User | None]]
 
 _api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
 
@@ -28,14 +30,25 @@ def parse_api_keys(value: str) -> list[str]:
 
 
 class ApiKeyAuth:
-    """Check the X-API-Key header against the configured keys."""
+    """Check the X-API-Key header against the users' keys and the shared `keys`.
 
-    def __init__(self, keys: Collection[str]) -> None:
-        if not keys:
-            raise ValueError("at least one API key is required")
+    A user's key (from `users`) authenticates as that user; a shared key (from
+    `$COBALT_API_KEYS`) authenticates without an account. Keys added to `users` while the
+    server runs work at once.
+    """
+
+    def __init__(self, keys: Collection[str] = (), users: UserStore | None = None) -> None:
+        if not keys and users is None:
+            raise ValueError("at least one API key or a user store is required")
         self._keys = list(keys)
+        self._users = users
 
-    async def __call__(self, api_key: str | None = Security(_api_key_header)) -> None:
+    async def __call__(self, api_key: str | None = Security(_api_key_header)) -> User | None:
+        if api_key is not None and self._users is not None:
+            # Looked up by the key's hash, so the lookup time doesn't depend on the key
+            user = self._users.user_for_key(api_key)
+            if user is not None:
+                return user
         # compare_digest against every key, so timing doesn't reveal which key nearly matched
         matched = False
         if api_key is not None:
@@ -47,15 +60,24 @@ class ApiKeyAuth:
                 detail="Invalid or missing API key",
                 headers={"WWW-Authenticate": "ApiKey"},
             )
+        return None
 
 
-def build_auth(mode: str, environ: Mapping[str, str] = os.environ) -> AuthDependency | None:
-    """Build the auth dependency for `mode`; None means no authentication."""
+def build_auth(
+    mode: str, users: UserStore | None = None, environ: Mapping[str, str] = os.environ
+) -> AuthDependency | None:
+    """Build the auth dependency for `mode`; None means no authentication.
+
+    `api-key` needs a user with a key in `users` or shared keys in `$COBALT_API_KEYS`.
+    """
     if mode == "none":
         return None
     if mode == "api-key":
         keys = parse_api_keys(environ.get(API_KEYS_ENV, ""))
-        if not keys:
-            raise ValueError(f"--auth api-key requires keys in ${API_KEYS_ENV} (comma-separated)")
-        return ApiKeyAuth(keys)
+        if not keys and (users is None or not users.has_keys()):
+            raise ValueError(
+                "--auth api-key requires API keys: add a user with `cobalt-server users add "
+                f"NAME`, or set shared keys in ${API_KEYS_ENV} (comma-separated)"
+            )
+        return ApiKeyAuth(keys, users)
     raise ValueError(f"unknown auth mode: {mode!r} (choose from {', '.join(AUTH_MODES)})")

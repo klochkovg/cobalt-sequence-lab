@@ -112,7 +112,9 @@ cobalt foldrna --input GGGAAAUCC --adapter viennarna   # viennarna is the defaul
 cobalt-server
 cobalt-server --cors                         # allow any origin (UI development)
 cobalt-server --cors http://localhost:5173   # allow specific origin(s)
-COBALT_API_KEYS=key1,key2 cobalt-server --host 0.0.0.0 --auth api-key   # require X-API-Key
+cobalt-server users add ada                  # add a user; prints its API key (shown once)
+cobalt-server --host 0.0.0.0 --auth api-key  # require X-API-Key: users' keys
+COBALT_API_KEYS=key1,key2 cobalt-server --host 0.0.0.0 --auth api-key   # ... or shared keys
 cobalt-server --host 0.0.0.0 --allow-no-auth   # no auth: a gateway or service mesh handles it
 cobalt-server --api-prefix ""                # pre-0.2.0 paths, without the /api prefix
 cobalt-server --max-upload-mb 500            # request body limit (default 100, 0 for none)
@@ -185,7 +187,7 @@ port: 8000
 api_prefix: /api
 max_upload_mb: 100
 cors: null            # null: disabled; []: any origin; or a list of origins
-auth: none            # none or api-key (keys come from $COBALT_API_KEYS, never from this file)
+auth: none            # none or api-key (keys: users store or $COBALT_API_KEYS, never this file)
 allow_no_auth: false
 ui_dist: null
 storage_dir: .        # relative paths are relative to this file's directory
@@ -197,6 +199,26 @@ storage_dir: .        # relative paths are relative to this file's directory
   ignored with a warning (as is a newer `config_version`). The file is never rewritten.
 - Invalid values (`port: abc`, `auth: jwt`) stop the server with an error naming the key.
 - Secrets are never stored in the file.
+
+### Users
+
+The server keeps its users and their API keys in a SQLite file, `<storage_dir>/users.sqlite3`
+(created at startup). `cobalt-server users ...` manages it, also while the server runs; it takes
+the same `--config` / `--storage-dir` flags, given before `users`:
+
+```bash
+cobalt-server users add ada              # prints the new API key on stdout, only this once
+cobalt-server users list                 # names, the start of each key, creation times
+cobalt-server users rename ada "Ada Lovelace"
+cobalt-server users remove "Ada Lovelace"   # also deletes its keys
+```
+
+- Keys are stored as SHA-256 hashes only; a lost key can't be recovered (remove and add the user).
+- With `--auth api-key`, a user's key authenticates as that user, and `GET /api/me` returns its
+  name. Shared keys from `$COBALT_API_KEYS` keep working without an account.
+- A default user, `lab user`, stands for callers without an account: everyone with `--auth none`,
+  and shared-key callers. It can be renamed (`users rename "lab user" NAME`), not removed.
+- `--auth api-key` needs at least one user key or shared key to start.
 
 # Logging
 

@@ -15,6 +15,7 @@ from cobalt.server.auth import ApiKeyAuth
 from cobalt.server.config import normalize_api_prefix
 from cobalt.server.registry import RunRegistry
 from cobalt.server.uploads import normalized_filename
+from cobalt.server.users import UserStore
 
 VERSION_BODY = {"title": "Cobalt Sequence Lab", "version": __version__}
 
@@ -830,6 +831,21 @@ def test_me_requires_api_key():
     resp = client.get("/api/me", headers={"X-API-Key": "k1"})
     assert resp.status_code == 200
     assert resp.json() == {"name": "lab user"}
+
+
+def test_me_user_key():
+    users = UserStore()
+    _, key = users.add_user("Ada Lovelace")
+    client = TestClient(build_app(auth=ApiKeyAuth(["k1"], users), users=users))
+    assert client.get("/api/me", headers={"X-API-Key": key}).json() == {"name": "Ada Lovelace"}
+    # A shared key has no user: the default user answers
+    assert client.get("/api/me", headers={"X-API-Key": "k1"}).json() == {"name": "lab user"}
+
+
+def test_me_renamed_default_user():
+    users = UserStore()
+    users.rename_user("lab user", "Lab")
+    assert TestClient(build_app(users=users)).get("/api/me").json() == {"name": "Lab"}
 
 
 def test_me_other_methods_not_allowed():
