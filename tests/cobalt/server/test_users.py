@@ -2,13 +2,18 @@ import sqlite3
 
 import pytest
 
+from cobalt.server.config import ServerConfig
 from cobalt.server.users import (
     DEFAULT_USER_NAME,
     KEY_PREFIX,
+    MIGRATIONS,
     SCHEMA_VERSION,
     UserStore,
     UserStoreError,
     hash_key,
+    hash_password,
+    users_db_path,
+    verify_password,
 )
 
 
@@ -160,8 +165,121 @@ def test_unreadable_file_refused(db_path):
 
 
 def test_two_stores_share_a_file(db_path):
-    # The server and `cobalt-server users ...` open the same file
+    # The server and `cobalt-admin users ...` open the same file
     server = UserStore(db_path)
     admin = UserStore(db_path)
     _, key = admin.add_user("ada")
     assert server.user_for_key(key).name == "ada"
+
+
+PASSWORD = "correct horse"
+
+
+def test_password_hash_round_trip():
+    stored = hash_password(PASSWORD)
+    assert stored.startswith("scrypt$")
+    assert PASSWORD not in stored
+    assert verify_password(PASSWORD, stored)
+    assert not verify_password("wrong password", stored)
+    # A new salt each time
+    assert hash_password(PASSWORD) != stored
+
+
+@pytest.mark.parametrize("stored", ["", "plain", "md5$1$2$3$AA==$AA==", "scrypt$x$8$1$AA==$AA=="])
+def test_verify_malformed_hash(stored):
+    assert not verify_password(PASSWORD, stored)
+
+
+def test_add_user_with_password():
+    store = UserStore()
+    store.add_user("ada", PASSWORD)
+    assert store.check_password("ada", PASSWORD).name == "ada"
+    assert store.check_password(" ada ", PASSWORD).name == "ada"
+    assert store.check_password("ada", "wrong password") is None
+    assert store.check_password("nobody", PASSWORD) is None
+
+
+def test_add_user_short_password():
+    store = UserStore()
+    with pytest.raises(UserStoreError, match="at least 8"):
+        store.add_user("ada", "short")
+    assert store.get("ada") is None
+
+
+def test_user_without_password_never_matches():
+    store = UserStore()
+    store.add_user("ada")
+    assert store.check_password("ada", "") is None
+    assert store.check_password("ada", PASSWORD) is None
+
+
+def test_set_and_clear_password():
+    store = UserStore()
+    store.add_user("ada")
+    store.set_password("ada", PASSWORD)
+    assert store.check_password("ada", PASSWORD) is not None
+    assert [info.has_password for info in store.list_users()] == [True, False]
+    store.set_password("ada", None)
+    assert store.check_password("ada", PASSWORD) is None
+    assert [info.has_password for info in store.list_users()] == [False, False]
+
+
+def test_set_password_errors():
+    store = UserStore()
+    store.add_user("ada")
+    with pytest.raises(UserStoreError, match="no such user"):
+        store.set_password("nobody", PASSWORD)
+    with pytest.raises(UserStoreError, match="default user can't have a password"):
+        store.set_password(DEFAULT_USER_NAME, PASSWORD)
+    with pytest.raises(UserStoreError, match="at least 8"):
+        store.set_password("ada", "short")
+
+
+def test_rotate_key_revokes_old_keys():
+    store = UserStore()
+    user, old = store.add_user("ada")
+    _, other = store.add_user("bob")
+    new = store.rotate_key("ada")
+    assert new != old
+    assert store.user_for_key(old) is None
+    assert store.user_for_key(new) == user
+    assert store.user_for_key(other).name == "bob"
+    assert store.list_users()[0].key_hints == (new[:12],)
+
+
+def test_rotate_key_errors():
+    store = UserStore()
+    with pytest.raises(UserStoreError, match="no such user"):
+        store.rotate_key("ada")
+    with pytest.raises(UserStoreError, match="default user can't have API keys"):
+        store.rotate_key(DEFAULT_USER_NAME)
+
+
+def test_version_1_store_is_upgraded(db_path):
+    # A store written before passwords existed
+    with sqlite3.connect(db_path) as conn:
+        for statement in MIGRATIONS[0]:
+            conn.execute(statement)
+        conn.execute(
+            "INSERT INTO users (name, created_at) VALUES ('ada', '2026-01-01T00:00:00+00:00')"
+        )
+        conn.execute(
+            "INSERT INTO api_keys (user_id, key_hash, hint, created_at) "
+            "VALUES (2, ?, 'cobalt_abcde', '2026-01-01T00:00:00+00:00')",
+            (hash_key("cobalt_old-key"),),
+        )
+        conn.execute("PRAGMA user_version = 1")
+    conn.close()
+    store = UserStore(db_path)
+    assert store.user_for_key("cobalt_old-key").name == "ada"
+    assert [info.has_password for info in store.list_users()] == [False, False]
+    store.set_password("ada", PASSWORD)
+    assert store.check_password("ada", PASSWORD) is not None
+    store.close()
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 2
+    conn.close()
+
+
+def test_users_db_path(tmp_path):
+    assert users_db_path(ServerConfig(storage_dir=tmp_path)) == tmp_path / "users.sqlite3"

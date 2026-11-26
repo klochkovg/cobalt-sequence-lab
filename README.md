@@ -112,7 +112,7 @@ cobalt foldrna --input GGGAAAUCC --adapter viennarna   # viennarna is the defaul
 cobalt-server
 cobalt-server --cors                         # allow any origin (UI development)
 cobalt-server --cors http://localhost:5173   # allow specific origin(s)
-cobalt-server users add ada                  # add a user; prints its API key (shown once)
+cobalt-admin users add ada                   # add a user (asks a password); prints its API key once
 cobalt-server --host 0.0.0.0 --auth api-key  # require X-API-Key: users' keys
 COBALT_API_KEYS=key1,key2 cobalt-server --host 0.0.0.0 --auth api-key   # ... or shared keys
 cobalt-server --host 0.0.0.0 --allow-no-auth   # no auth: a gateway or service mesh handles it
@@ -121,6 +121,7 @@ cobalt-server --max-upload-mb 500            # request body limit (default 100, 
 cobalt-server --ui-dist ../cobalt-sequence-lab-ui/dist   # also serve the built UI at /
 cobalt-server --config /etc/cobalt/server.yaml   # another config file (see Server configuration)
 cobalt-server --storage-dir /srv/cobalt          # server file storage
+COBALT_SERVER_HOME=/srv/cobalt cobalt-server     # server home: config and storage (see below)
 ```
 
 Every endpoint is served under `/api` (`--api-prefix` changes it; `""` removes it): `GET /api/`
@@ -174,11 +175,21 @@ curl -F file=@input.gb -F format=fasta http://127.0.0.1:8000/api/normalize > cle
 
 ## Server configuration
 
-`cobalt-server` reads its settings from a YAML file, by default
-`./.cobalt-server/cobalt-config.yaml` in the working directory. If that file is missing, it is
-created with the default values. A file given with `--config PATH` must exist. The
-server's file storage (`storage_dir`) defaults to the same `.cobalt-server` directory and is
-created at startup.
+`cobalt-server` reads its settings from `cobalt-config.yaml` in the **server home** directory.
+The home is set in one place, so the server and the admin commands (`cobalt-admin`) always find
+the same files, whatever the working directory:
+
+| Precedence | Source                      | Config file                          |
+| ---------- | --------------------------- | ------------------------------------ |
+| 1          | `--config PATH`             | `PATH` (must exist)                  |
+| 2          | `--home DIR`                | `DIR/cobalt-config.yaml`             |
+| 3          | `COBALT_SERVER_HOME=DIR`    | `DIR/cobalt-config.yaml`             |
+| 4          | default                     | `./.cobalt-server/cobalt-config.yaml` |
+
+Set `COBALT_SERVER_HOME` at installation (systemd unit, `/etc/environment`, the admin's shell
+profile) or in the container image. A missing config file in the home is created with the
+default values. The server's file storage (`storage_dir`: user store, runs) defaults to the
+config file's directory and is created at startup; `cobalt-admin paths` shows every location.
 
 ```yaml
 config_version: 1
@@ -200,20 +211,33 @@ storage_dir: .        # relative paths are relative to this file's directory
 - Invalid values (`port: abc`, `auth: jwt`) stop the server with an error naming the key.
 - Secrets are never stored in the file.
 
-### Users
+### Administration (`cobalt-admin`)
 
-The server keeps its users and their API keys in a SQLite file, `<storage_dir>/users.sqlite3`
-(created at startup). `cobalt-server users ...` manages it, also while the server runs; it takes
-the same `--config` / `--storage-dir` flags, given before `users`:
+`cobalt-admin` is the service command for the server's admin, run on the server host (over ssh,
+or `docker exec`). It works on the server's files directly, also while the server runs, and
+needs no `server` extra. It finds the files like `cobalt-server` (`--home`, `--config`,
+`--storage-dir` before the command, or `COBALT_SERVER_HOME`).
+
+The server keeps its users, passwords and API keys in a SQLite file,
+`<storage_dir>/users.sqlite3` (created at startup or by the first `cobalt-admin users` command):
 
 ```bash
-cobalt-server users add ada              # prints the new API key on stdout, only this once
-cobalt-server users list                 # names, the start of each key, creation times
-cobalt-server users rename ada "Ada Lovelace"
-cobalt-server users remove "Ada Lovelace"   # also deletes its keys
+cobalt-admin paths                       # config file, storage, user store, runs directory
+cobalt-admin users add ada               # asks for a password; prints the new API key, only once
+cobalt-admin users add bot --no-password # API key only
+cobalt-admin users passwd ada            # change the password (asked twice); --clear removes it
+cobalt-admin users rotate-key ada        # revoke ada's keys and print a new one, only once
+cobalt-admin users list                  # names, the start of each key, password set, created
+cobalt-admin users rename ada "Ada Lovelace"
+cobalt-admin users remove "Ada Lovelace" # also deletes its keys
+
+# Scripts and containers: the password comes from stdin, never from a flag (flags show in ps)
+printf '%s\n' "$PW" | ssh lab-a cobalt-admin users passwd ada --password-stdin
 ```
 
-- Keys are stored as SHA-256 hashes only; a lost key can't be recovered (remove and add the user).
+- Keys are stored as SHA-256 hashes only; a lost key can't be recovered (`users rotate-key`).
+- Passwords (at least 8 characters) are stored as salted scrypt hashes. They are not used by the
+  API yet (it authenticates with API keys); they are ready for a UI login.
 - With `--auth api-key`, a user's key authenticates as that user, and `GET /api/me` returns its
   name. Shared keys from `$COBALT_API_KEYS` keep working without an account.
 - A default user, `lab user`, stands for callers without an account: everyone with `--auth none`,
@@ -306,7 +330,8 @@ TID251, enforces it):
 
 - `src/cobalt/core/`: sequence I/O, analysis, data model and pipeline definitions
 - `src/cobalt/cli/`: the `cobalt` command; in client mode it talks to the server over HTTP only
-- `src/cobalt/server/`: the `cobalt-server` command and its FastAPI app
+- `src/cobalt/server/`: the `cobalt-server` command and its FastAPI app; `server/admin/` is the
+  `cobalt-admin` service command (users, passwords, API keys, paths)
 
 Local installation
 
@@ -456,7 +481,7 @@ they may do.
 
 The `Dockerfile` at the repository root builds one image with the package and its `server`
 dependencies (installed with pip from `pyproject.toml`; the conda environment is for development
-only). It has both commands, `cobalt` and `cobalt-server`, and by default runs
+only). It has the commands `cobalt`, `cobalt-server` and `cobalt-admin`, and by default runs
 `cobalt-server --host 0.0.0.0 --port 8000 --auth api-key`.
 
 ```bash
@@ -470,6 +495,10 @@ curl -H "X-API-Key: key1" -F file=@seqs.fasta http://127.0.0.1:8000/api/stats
 # Behind a gateway or service mesh that authenticates: override the command
 docker run --rm -p 8000:8000 cobalt-sequence-lab cobalt-server --host 0.0.0.0 --allow-no-auth
 
+# Admin: run cobalt-admin in the running container (COBALT_SERVER_HOME is set in the image)
+docker exec -it CONTAINER cobalt-admin users add ada
+printf '%s\n' "$PW" | docker exec -i CONTAINER cobalt-admin users passwd ada --password-stdin
+
 # CLI: run `cobalt` instead; mount the input files to /data (the working directory)
 docker run --rm -v "$PWD:/data" cobalt-sequence-lab cobalt stats seqs.fasta
 ```
@@ -480,8 +509,10 @@ Notes:
   unauthenticated.
 - Logs are plain text on stderr; read them with `docker logs` or the platform's log collector.
 - `HEALTHCHECK` polls `GET /api/health`, which is public, so liveness probes need no API key.
-- The server keeps its config and storage in `/data/.cobalt-server` (created on first start);
-  mount a volume at `/data` to keep them across containers.
+- The server keeps its config and storage in `/data/.cobalt-server` (created on first start):
+  the image sets `COBALT_SERVER_HOME=/data/.cobalt-server`, so `cobalt-admin` finds it from any
+  working directory. Mount a volume at `/data` to keep them across containers; override the
+  variable (`-e COBALT_SERVER_HOME=...`) to move them.
 - The server runs as the unprivileged user `cobalt` (uid 10001). Uploads are written to a
   temporary directory under `/tmp`, so with `--read-only` also mount `--tmpfs /tmp`.
 - RNA folding (ViennaRNA, the `rna` extra) is not in the image yet; it will be added when

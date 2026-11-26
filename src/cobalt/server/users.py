@@ -1,8 +1,8 @@
 """The user store of the server: users and their API keys in a SQLite file.
 
-`cobalt-server` keeps `<storage_dir>/users.sqlite3`; `cobalt-server users ...` manages it, also
+`cobalt-server` keeps `<storage_dir>/users.sqlite3`; `cobalt-admin users ...` manages it, also
 while the server runs. API keys are stored as SHA-256 hashes only: a key is shown once, when it
-is created. The schema is versioned with `PRAGMA user_version`; opening a store applies the
+is created. Passwords (optional, for a future UI login) are stored as salted scrypt hashes. The schema is versioned with `PRAGMA user_version`; opening a store applies the
 missing migrations.
 
 A seeded default user stands for callers without an account: every caller when authentication
@@ -13,7 +13,9 @@ This module must not import the optional `server` dependencies (fastapi, uvicorn
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
 import logging
 import secrets
 import sqlite3
@@ -23,6 +25,7 @@ from datetime import datetime
 from pathlib import Path
 
 from cobalt.core.pipeline.run import utc_now
+from cobalt.server.config import ServerConfig
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +35,13 @@ MAX_NAME_LENGTH = 100
 KEY_PREFIX = "cobalt_"
 # Characters of a key shown by `users list`: the prefix and a few random ones
 KEY_HINT_LENGTH = 12
+MIN_PASSWORD_LENGTH = 8
+# scrypt parameters of new password hashes; stored with each hash, so they can be raised later
+SCRYPT_N = 2**14
+SCRYPT_R = 8
+SCRYPT_P = 1
+SCRYPT_SALT_BYTES = 16
+SCRYPT_DKLEN = 32
 # How long a writer waits for another process's lock before failing
 BUSY_TIMEOUT_MS = 5000
 
@@ -56,10 +66,17 @@ MIGRATIONS: tuple[tuple[str, ...], ...] = (
         f"""INSERT INTO users (name, created_at, is_default)
             VALUES ('{DEFAULT_USER_NAME}', strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now'), 1)""",
     ),
+    # 1 -> 2: optional password; NULL means the user has none
+    ("ALTER TABLE users ADD COLUMN password_hash TEXT",),
 )
 SCHEMA_VERSION = len(MIGRATIONS)
 
 _USER_COLUMNS = "users.id, users.name, users.created_at, users.is_default"
+
+
+def users_db_path(config: ServerConfig) -> Path:
+    """Return the user store file of the server configured by `config`."""
+    return config.storage_dir / USERS_DB_FILENAME
 
 
 class UserStoreError(Exception):
@@ -91,6 +108,7 @@ class UserInfo:
 
     user: User
     key_hints: tuple[str, ...]
+    has_password: bool = False
 
 
 def hash_key(key: str) -> str:
@@ -104,6 +122,45 @@ def hash_key(key: str) -> str:
 def new_key() -> str:
     """Return a new random API key."""
     return KEY_PREFIX + secrets.token_urlsafe(32)
+
+
+def _b64(data: bytes) -> str:
+    return base64.b64encode(data).decode("ascii")
+
+
+def check_password_policy(password: str) -> None:
+    """Raise UserStoreError if `password` is too weak to be stored."""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise UserStoreError(f"password must have at least {MIN_PASSWORD_LENGTH} characters")
+
+
+def hash_password(password: str) -> str:
+    """Return the stored form of a password: `scrypt$n$r$p$<salt>$<hash>` (base64 salt, hash)."""
+    salt = secrets.token_bytes(SCRYPT_SALT_BYTES)
+    digest = hashlib.scrypt(
+        password.encode(), salt=salt, n=SCRYPT_N, r=SCRYPT_R, p=SCRYPT_P, dklen=SCRYPT_DKLEN
+    )
+    return f"scrypt${SCRYPT_N}${SCRYPT_R}${SCRYPT_P}${_b64(salt)}${_b64(digest)}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    """Return True if `password` matches `stored` (from `hash_password`); False if malformed."""
+    try:
+        scheme, n, r, p, salt, expected = stored.split("$")
+        if scheme != "scrypt":
+            return False
+        expected_bytes = base64.b64decode(expected, validate=True)
+        digest = hashlib.scrypt(
+            password.encode(),
+            salt=base64.b64decode(salt, validate=True),
+            n=int(n),
+            r=int(r),
+            p=int(p),
+            dklen=len(expected_bytes),
+        )
+    except ValueError:
+        return False
+    return hmac.compare_digest(digest, expected_bytes)
 
 
 def _clean_name(name: str) -> str:
@@ -211,19 +268,24 @@ class UserStore:
             ).fetchone()
         return None if row is None else User.from_row(row)
 
-    def add_user(self, name: str) -> tuple[User, str]:
-        """Create user `name` with a new API key; return the user and the key.
+    def add_user(self, name: str, password: str | None = None) -> tuple[User, str]:
+        """Create user `name` with a new API key and an optional password; return user and key.
 
         The key is not stored, only its hash: this is the one chance to show it.
         """
         name = _clean_name(name)
+        password_hash = None
+        if password is not None:
+            check_password_policy(password)
+            password_hash = hash_password(password)
         key = new_key()
         now = utc_now().isoformat(timespec="seconds")
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 cursor = self._conn.execute(
-                    "INSERT INTO users (name, created_at) VALUES (?, ?)", (name, now)
+                    "INSERT INTO users (name, created_at, password_hash) VALUES (?, ?, ?)",
+                    (name, now, password_hash),
                 )
                 self._conn.execute(
                     "INSERT INTO api_keys (user_id, key_hash, hint, created_at) "
@@ -246,12 +308,19 @@ class UserStore:
         """Return all users by name, with the hints of their keys."""
         with self._lock:
             users = self._conn.execute(
-                f"SELECT {_USER_COLUMNS} FROM users ORDER BY name"
+                f"SELECT {_USER_COLUMNS}, users.password_hash FROM users ORDER BY name"
             ).fetchall()
             hints: dict[int, list[str]] = {}
             for row in self._conn.execute("SELECT user_id, hint FROM api_keys ORDER BY id"):
                 hints.setdefault(row["user_id"], []).append(row["hint"])
-        return [UserInfo(User.from_row(row), tuple(hints.get(row["id"], []))) for row in users]
+        return [
+            UserInfo(
+                User.from_row(row),
+                tuple(hints.get(row["id"], [])),
+                has_password=row["password_hash"] is not None,
+            )
+            for row in users
+        ]
 
     def rename_user(self, old: str, new: str) -> User:
         """Rename user `old` to `new` and return it; the default user can be renamed too."""
@@ -279,6 +348,62 @@ class UserStore:
             # foreign_keys is on: the user's keys go with it (ON DELETE CASCADE)
             self._conn.execute("DELETE FROM users WHERE id = ?", (user.id,))
         log.info("removed user %s", user.name)
+
+    def _account(self, name: str, action: str) -> User:
+        """Return user `name` for `action`; the default user has no account to act on."""
+        user = self.get(name)
+        if user is None:
+            raise UserStoreError(f"no such user: {name.strip()}")
+        if user.is_default:
+            raise UserStoreError(f"the default user can't {action}: {user.name}")
+        return user
+
+    def set_password(self, name: str, password: str | None) -> None:
+        """Set the password of user `name`; None removes it. Not for the default user."""
+        user = self._account(name, "have a password")
+        password_hash = None
+        if password is not None:
+            check_password_policy(password)
+            password_hash = hash_password(password)
+        with self._lock:
+            self._conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?", (password_hash, user.id)
+            )
+        log.info("%s password of user %s", "set" if password is not None else "removed", user.name)
+
+    def check_password(self, name: str, password: str) -> User | None:
+        """Return user `name` if `password` is its password, else None (also without one)."""
+        with self._lock:
+            row = self._conn.execute(
+                f"SELECT {_USER_COLUMNS}, users.password_hash FROM users WHERE name = ?",
+                (name.strip(),),
+            ).fetchone()
+        if row is None or row["password_hash"] is None:
+            return None
+        if not verify_password(password, row["password_hash"]):
+            return None
+        return User.from_row(row)
+
+    def rotate_key(self, name: str) -> str:
+        """Replace all API keys of user `name` with a new one and return it (shown once)."""
+        user = self._account(name, "have API keys")
+        key = new_key()
+        now = utc_now().isoformat(timespec="seconds")
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                self._conn.execute("DELETE FROM api_keys WHERE user_id = ?", (user.id,))
+                self._conn.execute(
+                    "INSERT INTO api_keys (user_id, key_hash, hint, created_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (user.id, hash_key(key), key[:KEY_HINT_LENGTH], now),
+                )
+                self._conn.execute("COMMIT")
+            except BaseException:
+                self._conn.execute("ROLLBACK")
+                raise
+        log.info("new API key for user %s; its old keys are revoked", user.name)
+        return key
 
     def __len__(self) -> int:
         with self._lock:

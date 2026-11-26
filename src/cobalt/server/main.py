@@ -1,6 +1,7 @@
 """Entry point of the cobalt server (`cobalt-server`): flags, config file and startup checks.
 
-Without a command it serves the API; `cobalt-server users ...` manages the user store instead.
+It serves the API; the admin commands (users, passwords, keys) are `cobalt-admin`
+(`cobalt.server.admin`). Both find the config and storage the same way (`$COBALT_SERVER_HOME`).
 This module imports the optional server dependencies (fastapi, uvicorn) only inside `main`, so
 a missing `server` extra gives an error message instead of a traceback.
 """
@@ -21,21 +22,16 @@ from cobalt.server.config import (
     DEFAULT_HOST,
     DEFAULT_MAX_UPLOAD_MB,
     DEFAULT_PORT,
-    SERVER_DIR,
+    RUNS_DIRNAME,
     ServerConfig,
     ServerConfigError,
-    default_config_path,
-    load_server_config,
+    add_location_arguments,
     normalize_api_prefix,
-    save_server_config,
+    resolve_config,
 )
-from cobalt.server.users import USERS_DB_FILENAME, UserStore, UserStoreError
-from cobalt.server.users_cli import add_users_parser, run_users
+from cobalt.server.users import UserStore, UserStoreError, users_db_path
 
 log = logging.getLogger(__name__)
-
-# Directory of run manifests under the storage directory
-RUNS_DIRNAME = "runs"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -59,12 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     verbosity.add_argument(
         "-q", "--quiet", action="store_true", help="Show only errors on stderr (no access logs)"
     )
-    parser.add_argument(
-        "--config",
-        type=Path,
-        metavar="PATH",
-        help=f"Server config file (default: ./{SERVER_DIR}/cobalt-config.yaml, created if missing)",
-    )
+    add_location_arguments(parser)
     parser.add_argument("--host", help=f"Host to bind to (default: {DEFAULT_HOST})")
     parser.add_argument("--port", type=int, help=f"Port to bind to (default: {DEFAULT_PORT})")
     parser.add_argument(
@@ -102,15 +93,6 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help="Serve the built UI (its dist/ folder) at / alongside the API",
     )
-    parser.add_argument(
-        "--storage-dir",
-        type=Path,
-        metavar="PATH",
-        help="Server file storage (default: the config file's directory)",
-    )
-    # No command: serve the API
-    commands = parser.add_subparsers(dest="command", metavar="COMMAND")
-    add_users_parser(commands)
     return parser
 
 
@@ -136,19 +118,11 @@ def _is_loopback(host: str) -> bool:
 
 
 def load_config(args: argparse.Namespace) -> ServerConfig:
-    """Read the server config named by `args.config` (or the default one) and apply the flags.
+    """Find and read the server config (see `resolve_config`) and apply the flags.
 
-    A missing default config file is created with default values; a missing file given with
-    --config is an error. Raises ServerConfigError.
+    Raises ServerConfigError.
     """
-    path = args.config if args.config is not None else default_config_path()
-    if args.config is None and not path.exists():
-        try:
-            save_server_config(ServerConfig(), path)
-        except OSError as exc:
-            raise ServerConfigError(f"could not create {path}: {exc}") from None
-        log.info("created default server config %s", path)
-    config = load_server_config(path).resolve_paths(path.parent)
+    config, path = resolve_config(args.config, args.home, args.storage_dir)
     log.info("server config: %s", path)
     return config.with_overrides(
         host=args.host,
@@ -159,7 +133,6 @@ def load_config(args: argparse.Namespace) -> ServerConfig:
         api_prefix=args.api_prefix,
         max_upload_mb=args.max_upload_mb,
         ui_dist=args.ui_dist,
-        storage_dir=args.storage_dir,
     )
 
 
@@ -168,13 +141,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     # The server logs at INFO by default, so -v goes straight to DEBUG
     configure_logging(args.verbose + 1 if args.verbose else 0, args.quiet, server=True)
-    if args.command == "users":
-        # Needs no server dependencies: handled before importing them
-        try:
-            return run_users(args, load_config(args))
-        except ServerConfigError as exc:
-            log.error("%s", exc)
-            return 1
     try:
         import uvicorn
 
@@ -208,7 +174,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     log.info("runs loaded: %d", loaded)
     try:
-        users = UserStore(config.storage_dir / USERS_DB_FILENAME)
+        users = UserStore(users_db_path(config))
     except UserStoreError as exc:
         log.error("%s", exc)
         return 1

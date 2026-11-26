@@ -76,7 +76,7 @@ def build_auth(
         keys = parse_api_keys(environ.get(API_KEYS_ENV, ""))
         if not keys and (users is None or not users.has_keys()):
             raise ValueError(
-                "--auth api-key requires API keys: add a user with `cobalt-server users add "
+                "--auth api-key requires API keys: add a user with `cobalt-admin users add "
                 f"NAME`, or set shared keys in ${API_KEYS_ENV} (comma-separated)"
             )
         return ApiKeyAuth(keys, users)

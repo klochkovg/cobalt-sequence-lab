@@ -27,6 +27,7 @@ dev = [
 [project.scripts]
 cobalt = "cobalt.cli.main:main"
 cobalt-server = "cobalt.server.main:main"
+cobalt-admin = "cobalt.server.admin.main:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

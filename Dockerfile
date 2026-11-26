@@ -30,11 +30,14 @@ LABEL org.opencontainers.image.title="Cobalt Sequence Lab" \
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    COBALT_LOG_FORMAT=plain
+    COBALT_LOG_FORMAT=plain \
+    COBALT_SERVER_HOME=/data/.cobalt-server
 
 COPY --from=build /opt/venv /opt/venv
 
-# /data is owned by cobalt: the server creates its config and storage in /data/.cobalt-server
+# /data is owned by cobalt: the server creates its config and storage in $COBALT_SERVER_HOME
+# (/data/.cobalt-server). Admin commands find it from any cwd:
+#   docker exec -it CONTAINER cobalt-admin users add ada
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin cobalt \
     && mkdir -p /data && chown cobalt:cobalt /data
 USER cobalt

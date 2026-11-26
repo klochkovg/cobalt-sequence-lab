@@ -1,5 +1,13 @@
 import pytest
 
+from cobalt.server.config import HOME_ENV
+
+
+@pytest.fixture(autouse=True)
+def no_server_home(monkeypatch):
+    """Tests choose the server home themselves: ignore one set in the environment."""
+    monkeypatch.delenv(HOME_ENV, raising=False)
+
 
 @pytest.fixture
 def ui_dist(tmp_path):

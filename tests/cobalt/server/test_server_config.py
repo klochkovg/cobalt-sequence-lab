@@ -6,12 +6,15 @@ import pytest
 
 from cobalt.server.config import (
     CONFIG_VERSION,
+    HOME_ENV,
     ServerConfig,
     ServerConfigError,
     default_config_path,
     load_server_config,
     parse_server_config,
+    resolve_config,
     save_server_config,
+    server_home,
 )
 
 
@@ -32,8 +35,49 @@ def test_defaults():
 
 
 def test_default_config_path(tmp_path):
-    assert default_config_path(tmp_path) == tmp_path / ".cobalt-server" / "cobalt-config.yaml"
-    assert default_config_path() == Path.cwd() / ".cobalt-server" / "cobalt-config.yaml"
+    assert default_config_path(tmp_path) == tmp_path / "cobalt-config.yaml"
+
+
+def test_server_home_default(tmp_path):
+    assert server_home({}, tmp_path) == tmp_path / ".cobalt-server"
+    assert server_home({HOME_ENV: "  "}, tmp_path) == tmp_path / ".cobalt-server"
+    assert server_home({}) == Path.cwd() / ".cobalt-server"
+
+
+def test_server_home_env(tmp_path, monkeypatch):
+    assert server_home({HOME_ENV: "/srv/cobalt"}, tmp_path) == Path("/srv/cobalt")
+    assert server_home({HOME_ENV: "rel/home"}, tmp_path) == tmp_path / "rel" / "home"
+    monkeypatch.setenv("HOME", str(tmp_path / "user"))
+    assert server_home({HOME_ENV: "~/cobalt"}, Path("/")) == tmp_path / "user" / "cobalt"
+
+
+def test_resolve_config_creates_default_in_home(tmp_path):
+    config, path = resolve_config(None, None, environ={HOME_ENV: str(tmp_path / "home")})
+    assert path == tmp_path / "home" / "cobalt-config.yaml"
+    assert path.is_file()
+    assert config.storage_dir == tmp_path / "home"
+
+
+def test_resolve_config_precedence(tmp_path):
+    env = {HOME_ENV: str(tmp_path / "env")}
+    _, path = resolve_config(None, tmp_path / "flag", environ=env)
+    assert path == tmp_path / "flag" / "cobalt-config.yaml"
+    explicit = write(tmp_path, "config_version: 1\nport: 9000\n", "explicit.yaml")
+    config, path = resolve_config(explicit, tmp_path / "flag2", environ=env)
+    assert (path, config.port) == (explicit, 9000)
+    assert not (tmp_path / "flag2").exists()
+    assert not (tmp_path / "env").exists()
+
+
+def test_resolve_config_missing_explicit_file(tmp_path):
+    with pytest.raises(ServerConfigError, match="config file not found"):
+        resolve_config(tmp_path / "missing.yaml", None, environ={})
+    assert not (tmp_path / "missing.yaml").exists()
+
+
+def test_resolve_config_storage_dir_override(tmp_path):
+    config, _ = resolve_config(None, tmp_path, tmp_path / "store", environ={})
+    assert config.storage_dir == tmp_path / "store"
 
 
 def test_save_and_load_round_trip(tmp_path):

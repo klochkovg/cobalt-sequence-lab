@@ -10,8 +10,9 @@ from fastapi.testclient import TestClient
 
 from cobalt import __version__
 from cobalt.core.pipeline import load_pipeline
+from cobalt.server.admin.main import main as admin_main
 from cobalt.server.auth import API_KEYS_ENV
-from cobalt.server.config import ServerConfig, load_server_config
+from cobalt.server.config import HOME_ENV, ServerConfig, load_server_config
 from cobalt.server.main import build_parser, main
 from cobalt.server.registry import RunRegistry
 
@@ -38,6 +39,7 @@ def test_parser_flags_default_to_not_given():
     args = build_parser().parse_args([])
     for name in (
         "config",
+        "home",
         "host",
         "port",
         "cors",
@@ -260,69 +262,56 @@ def test_missing_server_dependencies(monkeypatch, uvicorn_calls, caplog):
 
 
 def users_main(*args):
-    return main(["users", *args])
+    return admin_main(["users", *args])
 
 
-def test_users_add_and_list(uvicorn_calls, capsys):
-    assert users_main("add", "ada") == 0
-    key = capsys.readouterr().out.strip()
-    assert key.startswith("cobalt_")
-    assert Path(".cobalt-server/users.sqlite3").is_file()
-
-    assert users_main("list") == 0
-    out = capsys.readouterr().out
-    assert "lab user (default)" in out
-    rows = [line.split() for line in out.splitlines()]
-    assert ["ada", f"{key[:12]}..."] == rows[1][:2]
-    assert uvicorn_calls == []
-
-
-def test_users_rename_and_remove(uvicorn_calls, capsys):
-    assert users_main("add", "ada") == 0
-    assert users_main("rename", "ada", "bob") == 0
-    assert users_main("remove", "bob") == 0
-    capsys.readouterr()
-    assert users_main("list") == 0
-    out = capsys.readouterr().out
-    assert "ada" not in out
-    assert "bob" not in out
-
-
-@pytest.mark.parametrize(
-    ("args", "message"),
-    [
-        (("remove", "lab user"), "default user can't be removed"),
-        (("remove", "nobody"), "no such user: nobody"),
-        (("rename", "nobody", "x"), "no such user: nobody"),
-        (("add", " "), "must not be empty"),
-    ],
-)
-def test_users_errors(uvicorn_calls, caplog, args, message):
-    assert users_main(*args) == 1
-    assert message in caplog.text
-
-
-def test_users_need_an_action(uvicorn_calls):
+def test_users_command_moved_to_admin(uvicorn_calls):
     with pytest.raises(SystemExit):
-        users_main()
-
-
-def test_users_storage_dir_flag(uvicorn_calls, tmp_path, capsys):
-    assert main(["--storage-dir", str(tmp_path / "store"), "users", "add", "ada"]) == 0
-    assert (tmp_path / "store" / "users.sqlite3").is_file()
-
-
-def test_users_unusable_store(uvicorn_calls, caplog):
-    write_config(Path(".cobalt-server/users.sqlite3"), "not a database " * 100)
-    assert users_main("list") == 1
-    assert "could not open user store" in caplog.text
-    assert main([]) == 1
+        main(["users", "list"])
     assert uvicorn_calls == []
+
+
+def test_main_unusable_user_store(uvicorn_calls, caplog):
+    write_config(Path(".cobalt-server/users.sqlite3"), "not a database " * 100)
+    assert main([]) == 1
+    assert "could not open user store" in caplog.text
+    assert uvicorn_calls == []
+
+
+def test_main_server_home_env(monkeypatch, uvicorn_calls, tmp_path):
+    home = tmp_path / "home"
+    monkeypatch.setenv(HOME_ENV, str(home))
+    write_config(home / "cobalt-config.yaml", "config_version: 1\nport: 9200\n")
+    assert main([]) == 0
+    ((app, kwargs),) = uvicorn_calls
+    assert kwargs["port"] == 9200
+    assert app.state.runs.runs_dir == home / "runs"
+    assert not Path(".cobalt-server").exists()
+
+
+def test_main_home_flag(uvicorn_calls, tmp_path):
+    assert main(["--home", str(tmp_path / "home")]) == 0
+    assert (tmp_path / "home" / "cobalt-config.yaml").is_file()
+    assert (tmp_path / "home" / "users.sqlite3").is_file()
+
+
+def test_main_and_admin_share_home(monkeypatch, uvicorn_calls, tmp_path, capsys):
+    monkeypatch.delenv(API_KEYS_ENV, raising=False)
+    monkeypatch.setenv(HOME_ENV, str(tmp_path / "home"))
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    assert users_main("add", "ada", "--no-password") == 0
+    key = capsys.readouterr().out.strip()
+    monkeypatch.chdir(tmp_path / "cwd")
+    assert main(["--auth", "api-key"]) == 0
+    ((app, _),) = uvicorn_calls
+    assert TestClient(app).get("/api/me", headers={"X-API-Key": key}).json() == {"name": "ada"}
 
 
 def test_main_serves_user_keys(monkeypatch, uvicorn_calls, capsys):
     monkeypatch.delenv(API_KEYS_ENV, raising=False)
-    assert users_main("add", "ada") == 0
+    assert users_main("add", "ada", "--no-password") == 0
     key = capsys.readouterr().out.strip()
     assert main(["--auth", "api-key"]) == 0
     ((app, _),) = uvicorn_calls

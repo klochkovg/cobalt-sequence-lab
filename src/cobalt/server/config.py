@@ -1,6 +1,9 @@
 """Server configuration of `cobalt-server`: a versioned YAML file and its reader and writer.
 
-The file lives at `./.cobalt-server/cobalt-config.yaml` by default. A file written by another
+The file lives in the server home directory: `$COBALT_SERVER_HOME` (or `--home`), else
+`./.cobalt-server`. `cobalt-server` and `cobalt-admin` find the config, storage and user store the
+same way (`add_location_arguments`, `resolve_config`), so setting the home once (at installation,
+or in the container image) is enough. A file written by another
 cobalt version still loads: parameters it lacks get their defaults and parameters this version
 doesn't know are ignored (with a warning). Invalid values are errors. Secrets (API keys) are never
 stored here; they come from the environment.
@@ -10,8 +13,10 @@ This module must not import the optional `server` dependencies (fastapi, uvicorn
 
 from __future__ import annotations
 
+import argparse
 import dataclasses
 import logging
+import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -25,8 +30,12 @@ log = logging.getLogger(__name__)
 
 CONFIG_VERSION = 1
 SERVER_DIR = ".cobalt-server"
+# Server home directory (config file, default storage); unset: ./.cobalt-server
+HOME_ENV = "COBALT_SERVER_HOME"
 CONFIG_FILENAME = "cobalt-config.yaml"
 CONFIG_FILE_MODE = 0o644
+# Directory of run manifests under the storage directory
+RUNS_DIRNAME = "runs"
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
@@ -45,9 +54,21 @@ class ServerConfigError(Exception):
     """A config file that can't be read or holds an invalid value; the message is ready to log."""
 
 
-def default_config_path(cwd: Path | None = None) -> Path:
-    """Return the default config file path under `cwd` (the current directory by default)."""
-    return (cwd if cwd is not None else Path.cwd()) / SERVER_DIR / CONFIG_FILENAME
+def server_home(environ: Mapping[str, str] = os.environ, cwd: Path | None = None) -> Path:
+    """Return the server home directory: `$COBALT_SERVER_HOME`, else `<cwd>/.cobalt-server`.
+
+    `cwd` is the current directory by default. The result is absolute.
+    """
+    base = cwd if cwd is not None else Path.cwd()
+    value = environ.get(HOME_ENV, "").strip()
+    if value:
+        return (base / Path(value).expanduser()).absolute()
+    return (base / SERVER_DIR).absolute()
+
+
+def default_config_path(home: Path) -> Path:
+    """Return the config file path in the server home directory `home`."""
+    return home / CONFIG_FILENAME
 
 
 @dataclass(slots=True)
@@ -252,3 +273,57 @@ def normalize_api_prefix(prefix: str) -> str:
     """Return `prefix` with one leading slash and no trailing slash; "" stays "" (no prefix)."""
     stripped = prefix.strip().strip("/")
     return f"/{stripped}" if stripped else ""
+
+
+def add_location_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the flags that locate the server home, config file and storage to `parser`.
+
+    `cobalt-server` and `cobalt-admin` share them, so both find the same files. Each defaults to
+    None ("not given"); see `resolve_config`.
+    """
+    parser.add_argument(
+        "--home",
+        type=Path,
+        metavar="PATH",
+        help=f"Server home directory (default: ${HOME_ENV}, else ./{SERVER_DIR})",
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        metavar="PATH",
+        help=f"Server config file (default: <home>/{CONFIG_FILENAME}, created if missing)",
+    )
+    parser.add_argument(
+        "--storage-dir",
+        type=Path,
+        metavar="PATH",
+        help="Server file storage and user store (default: the config file's directory)",
+    )
+
+
+def resolve_config(
+    config: Path | None,
+    home: Path | None,
+    storage_dir: Path | None = None,
+    environ: Mapping[str, str] = os.environ,
+) -> tuple[ServerConfig, Path]:
+    """Find and read the server config; return it (paths resolved) and the config file path.
+
+    Precedence of the file: `config` (--config) → `home` (--home) → `$COBALT_SERVER_HOME` →
+    `./.cobalt-server`. A missing config file in a home directory is created with default
+    values; a missing file given as `config` is an error. `storage_dir` (--storage-dir) overrides
+    the file's value. Raises ServerConfigError.
+    """
+    if config is not None:
+        path = config
+    else:
+        path = default_config_path(home.absolute() if home is not None else server_home(environ))
+        if not path.exists():
+            try:
+                save_server_config(ServerConfig(), path)
+            except OSError as exc:
+                raise ServerConfigError(f"could not create {path}: {exc}") from None
+            log.info("created default server config %s", path)
+    loaded = load_server_config(path).resolve_paths(path.parent)
+    log.debug("server config: %s", path)
+    return loaded.with_overrides(storage_dir=storage_dir), path

@@ -17,7 +17,11 @@ Biopython on sequence data (FASTA, GenBank). See `README.md` for goals, roadmap 
     `normalize`, `run`, `runs`, `help`, ...), dispatched from `cli/main.py`; client mode talks to
     the server over HTTP only (`cli/client.py`)
   - `server/`: the `cobalt-server` command (`server/main.py`): FastAPI app (`app.py`), upload
-    handling, middleware, auth, config file, run registry
+    handling, middleware, auth, config file, run registry, user store
+    - `admin/`: the `cobalt-admin` service command (users, passwords, API keys, paths), one
+      module per command group; no fastapi/uvicorn imports
+  - Server files are located through one place: `COBALT_SERVER_HOME` / `--home`
+    (`server/config.py`: `server_home`, `resolve_config`, `add_location_arguments`)
   - `logging_config.py`: logging setup, shared by both commands
 - `cli` and `server` must never import each other, and `core` imports neither. Ruff rule TID251
   enforces it (`[tool.ruff.lint]` in `pyproject.toml` plus `src/cobalt/{cli,server}/ruff.toml`).
