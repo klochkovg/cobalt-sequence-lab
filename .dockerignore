@@ -37,6 +37,7 @@ thoughts.md
 # Files not needed inside the image
 CLAUDE.md
 Makefile
+scripts
 environment.yml
 Dockerfile
 .dockerignore

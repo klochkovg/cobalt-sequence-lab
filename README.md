@@ -477,6 +477,29 @@ Deployment path: `api-key` now → `jwt` once an identity provider exists → a 
 (Istio, Linkerd) providing mTLS between services, with the JWT saying who is calling and what
 they may do.
 
+## Building a distribution zip
+
+`make dist` (script: `scripts/make_dist.py`; needs the `build` package from `.[dev]`) builds the
+wheel and sdist and packs them into `dist/cobalt-sequence-lab-<version>.zip`:
+
+```
+cobalt-sequence-lab-<version>/
+    cobalt_sequence_lab-<version>-py3-none-any.whl
+    cobalt_sequence_lab-<version>.tar.gz
+    README.md  LICENSE  THIRD_PARTY_NOTICE.md
+    INSTALL.txt                      # install steps for this version
+```
+
+Dependencies are not bundled; pip downloads them from PyPI. To install from the zip:
+
+```bash
+unzip cobalt-sequence-lab-<version>.zip && cd cobalt-sequence-lab-<version>
+python3 -m venv .venv && . .venv/bin/activate
+pip install "cobalt_sequence_lab-<version>-py3-none-any.whl[server]"
+```
+
+`make dist-clean` removes `dist/` and `build/`.
+
 ## Running in Docker
 
 The `Dockerfile` at the repository root builds one image with the package and its `server`

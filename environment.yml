@@ -22,6 +22,7 @@ dependencies:
   - ruff
   - mypy
   - types-pyyaml
+  - python-build
   - jupyterlab
   - ipykernel
   - pip

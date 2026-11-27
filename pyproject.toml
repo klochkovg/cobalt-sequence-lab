@@ -22,6 +22,7 @@ dev = [
     "ruff",
     "mypy",
     "types-PyYAML",
+    "build",  # make dist
 ]
 
 [project.scripts]
